@@ -1,4 +1,4 @@
-use crate::{models, recording, shortcuts, with_commands};
+use crate::{recording, shortcuts, with_commands};
 
 /// Setup Specta for type-safe TypeScript bindings and event emission
 ///
@@ -13,9 +13,6 @@ pub fn setup(app: &tauri::AppHandle) {
         // Events with specta support (type-safe bindings will be generated)
         .events(tauri_specta::collect_events![
             recording::events::RecordingStateChanged,
-            // Model events (discriminated unions for state machine patterns)
-            models::events::ModelDownloadStateChanged,
-            models::events::ModelLoadingStateChanged,
             // Shortcuts events
             shortcuts::events::KeyCaptureEvent,
         ]);
@@ -45,8 +42,6 @@ mod tests {
             .commands(with_commands!(tauri_specta::collect_commands))
             .events(tauri_specta::collect_events![
                 crate::recording::events::RecordingStateChanged,
-                crate::models::events::ModelDownloadStateChanged,
-                crate::models::events::ModelLoadingStateChanged,
                 crate::shortcuts::events::KeyCaptureEvent,
             ]);
 

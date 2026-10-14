@@ -1,26 +1,22 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use log::{error, warn};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use tauri::{AppHandle, Manager};
 
-use crate::config::{
-    self, AudioFormat, AzureOpenAIConfig, ConfigKey, ConfigStore, CustomEndpointConfig,
-    LocalModelConfig, OpenAIConfig, OpenRouterConfig, Provider,
-};
+use crate::config::{self, AudioFormat, Provider, ProviderCredentials};
 use crate::keychain::{self, ProviderAccount};
-use crate::models::{is_model_in_catalog, ModelLoader, ModelManager};
+use crate::presets::{self, Preset};
 
 use super::api_transcriber::ApiTranscriber;
 use super::azure_client::AzureClient;
 use super::client::TranscriptionClient;
-use super::config::ApiConfig;
 use super::custom_endpoint_client::CustomEndpointClient;
+use super::elevenlabs_client::ElevenLabsClient;
 use super::error::TranscriptionError;
-use super::local_transcriber::LocalTranscriber;
 use super::openai_client::OpenAIClient;
 use super::openrouter_transcriber::OpenRouterTranscriber;
+use super::options::TranscriptionOptions;
 use super::service::TranscriptionService;
 
 const MIN_AUDIO_DURATION_MS: u64 = 500; // Minimum 0.5 seconds
@@ -34,51 +30,47 @@ static SILENT_WAV: &[u8] = include_bytes!("../../assets/silent_1s.wav");
 
 /// Transcription service that orchestrates audio transcription.
 ///
-/// Abstracts away the transcription implementation details - the caller
-/// doesn't need to know whether it's using an API or local model.
+/// Built from the active preset: the preset decides the provider, the model
+/// and the per-request options, while the secret comes from the Keychain.
 pub struct Transcriber {
     service: Box<dyn TranscriptionService>,
     audio_format: AudioFormat,
-    provider: Provider,
+    preset: Preset,
 }
 
 impl Transcriber {
-    /// Create a new Transcriber from application config and app handle.
-    ///
-    /// The app handle is needed for local provider to access ModelLoader state.
+    /// Create a new Transcriber from the active preset.
     pub fn from_app(app: &AppHandle) -> Result<Self, TranscriptionError> {
         let config_store = app.state::<config::Config>();
+        let presets = presets::load(&*config_store);
 
-        let app_config = config_store.get(&ConfigKey::APP).unwrap_or_default();
+        let preset = presets
+            .active()
+            .cloned()
+            .ok_or(TranscriptionError::NoPresetSelected)?;
 
-        let provider = app_config
-            .active_provider
-            .as_ref()
-            .ok_or(TranscriptionError::ApiKeyMissing)?;
-
-        let service = Self::create_service(provider, app)?;
-        let audio_format = app_config.audio_format;
         Ok(Self {
-            service,
-            audio_format,
-            provider: provider.clone(),
+            service: Self::create_service(&preset)?,
+            audio_format: preset.audio_format,
+            preset,
         })
     }
 
-    /// Test API credentials without creating a persistent instance.
-    ///
-    /// Creates a temporary client and attempts to transcribe the embedded silent audio.
+    /// The preset this transcriber was built from.
+    pub fn preset(&self) -> &Preset {
+        &self.preset
+    }
+
+    /// Check a preset end to end by transcribing an embedded silent clip.
     ///
     /// # Returns
-    /// * `Ok(true)` - Credentials are valid
-    /// * `Ok(false)` - Credentials are invalid (401 Unauthorized)
+    /// * `Ok(true)` - Preset works
+    /// * `Ok(false)` - Credentials were rejected (401)
     /// * `Err(TranscriptionError)` - Network or other API error
-    pub fn test_api_key(config: &ApiConfig) -> Result<bool, TranscriptionError> {
-        let client = Self::create_client_from_explicit_config(config);
-        let service = ApiTranscriber::new(client);
+    pub fn test_preset(preset: &Preset) -> Result<bool, TranscriptionError> {
+        let service = Self::create_service(preset)?;
 
-        // Create temp file for static audio
-        let temp_path = std::env::temp_dir().join("dictara_test_audio.wav");
+        let temp_path = std::env::temp_dir().join(format!("voiceflow_test_{}.wav", preset.id));
         std::fs::write(&temp_path, SILENT_WAV).map_err(|e| {
             TranscriptionError::IoError(std::io::Error::other(format!(
                 "Failed to write test audio: {}",
@@ -88,14 +80,15 @@ impl Transcriber {
 
         let result = match service.transcribe(&temp_path) {
             Ok(_) => Ok(true),
-            Err(TranscriptionError::ApiError(msg)) if msg.contains("401") => {
-                warn!("API key is invalid (401 Unauthorized)");
+            Err(TranscriptionError::ApiError(msg))
+                if msg.contains("401") || msg.contains("Unauthorized") =>
+            {
+                warn!("Credentials rejected for preset '{}'", preset.name);
                 Ok(false)
             }
             Err(e) => Err(e),
         };
 
-        // Clean up temp file, log warning if it fails
         if let Err(e) = std::fs::remove_file(&temp_path) {
             warn!(
                 "Failed to clean up temp file '{}': {}. File may need manual cleanup.",
@@ -133,148 +126,94 @@ impl Transcriber {
         // Validate file
         self.validate_file(&file_path)?;
 
-        // If the format is set to Mp3 and the provider is an API-based provider (not Local),
-        // we convert the file to MP3 first and transcribe that instead!
-        if self.audio_format == AudioFormat::Mp3 && self.provider != Provider::Local {
-            log::info!(
-                "Converting WAV to MP3 for API transmission: {:?}",
-                file_path
-            );
-            let mp3_path = convert_wav_to_mp3(&file_path)?;
-
-            // Perform transcription on the MP3 file
-            let result = self.service.transcribe(&mp3_path);
-
-            // Clean up the temporary MP3 file
-            if let Err(e) = std::fs::remove_file(&mp3_path) {
-                warn!(
-                    "Failed to delete temporary MP3 file '{:?}': {}",
-                    mp3_path, e
-                );
-            }
-
-            result
-        } else {
-            // Transcribe using the appropriate service
-            self.service.transcribe(&file_path)
+        if self.audio_format != AudioFormat::Mp3 {
+            return self.service.transcribe(&file_path);
         }
+
+        log::info!(
+            "Converting WAV to MP3 for API transmission: {:?}",
+            file_path
+        );
+        let mp3_path = convert_wav_to_mp3(&file_path)?;
+
+        let result = self.service.transcribe(&mp3_path);
+
+        if let Err(e) = std::fs::remove_file(&mp3_path) {
+            warn!(
+                "Failed to delete temporary MP3 file '{:?}': {}",
+                mp3_path, e
+            );
+        }
+
+        result
     }
 
     // ========== Private methods ==========
 
-    /// Create the appropriate transcription service based on provider.
+    /// Build the transcription service described by a preset.
     fn create_service(
-        provider: &Provider,
-        app: &AppHandle,
+        preset: &Preset,
     ) -> Result<Box<dyn TranscriptionService>, TranscriptionError> {
-        match provider {
-            Provider::OpenAI | Provider::AzureOpenAI | Provider::CustomEndpoint => {
-                let client = Self::create_api_client(provider)?;
-                Ok(Box::new(ApiTranscriber::new(client)))
-            }
-            Provider::OpenRouter => {
-                let config: OpenRouterConfig =
-                    keychain::load_provider_config(ProviderAccount::OpenRouter)
-                        .map_err(|_| TranscriptionError::ApiKeyMissing)?
-                        .ok_or(TranscriptionError::ApiKeyMissing)?;
-                Ok(Box::new(OpenRouterTranscriber::new(
-                    SecretString::from(config.api_key),
-                    config.model,
-                )))
-            }
-            Provider::Local => Self::create_local_service(app),
+        if !preset.is_complete() {
+            return Err(TranscriptionError::PresetIncomplete(preset.name.clone()));
         }
-    }
 
-    /// Create API client from keychain credentials.
-    fn create_api_client(
-        provider: &Provider,
-    ) -> Result<Box<dyn TranscriptionClient>, TranscriptionError> {
-        match provider {
-            Provider::OpenAI => {
-                let config: OpenAIConfig = keychain::load_provider_config(ProviderAccount::OpenAI)
-                    .map_err(|_| TranscriptionError::ApiKeyMissing)?
-                    .ok_or(TranscriptionError::ApiKeyMissing)?;
-                Ok(Box::new(OpenAIClient::new(SecretString::from(
-                    config.api_key,
-                ))))
-            }
-            Provider::AzureOpenAI => {
-                let config: AzureOpenAIConfig =
-                    keychain::load_provider_config(ProviderAccount::AzureOpenAI)
-                        .map_err(|_| TranscriptionError::ApiKeyMissing)?
-                        .ok_or(TranscriptionError::ApiKeyMissing)?;
-                Ok(Box::new(AzureClient::new(
-                    SecretString::from(config.api_key),
-                    config.endpoint,
-                )))
-            }
-            Provider::CustomEndpoint => {
-                let config: CustomEndpointConfig =
-                    keychain::load_provider_config(ProviderAccount::CustomEndpoint)
-                        .map_err(|_| TranscriptionError::ApiKeyMissing)?
-                        .ok_or(TranscriptionError::ApiKeyMissing)?;
-                let api_key = config.api_key.map(SecretString::from);
-                Ok(Box::new(CustomEndpointClient::new(
-                    api_key,
-                    config.base_url,
-                    config.model,
-                )))
-            }
-            Provider::Local | Provider::OpenRouter => Err(TranscriptionError::ApiError(
-                "Local/OpenRouter provider doesn't use standard API client".to_string(),
+        let credentials = Self::load_credentials(preset.provider)?;
+        let options = TranscriptionOptions::from_preset(preset);
+
+        // OpenRouter speaks JSON + base64 rather than multipart, so it is a
+        // service of its own rather than a `TranscriptionClient`.
+        if preset.provider == Provider::OpenRouter {
+            let key = Self::require_key(&credentials, preset.provider)?;
+            return Ok(Box::new(OpenRouterTranscriber::new(key, options)));
+        }
+
+        let client: Box<dyn TranscriptionClient> = match preset.provider {
+            Provider::OpenAI => Box::new(OpenAIClient::new(
+                Self::require_key(&credentials, preset.provider)?,
+                options,
             )),
-        }
-    }
-
-    /// Create local transcription service with validation.
-    fn create_local_service(
-        app: &AppHandle,
-    ) -> Result<Box<dyn TranscriptionService>, TranscriptionError> {
-        // Load local model config
-        let config_store = app.state::<config::Config>();
-
-        let local_config: Option<LocalModelConfig> = config_store.get(&ConfigKey::LOCAL_MODEL);
-        let selected_model = local_config
-            .and_then(|c| c.selected_model)
-            .ok_or(TranscriptionError::NoModelSelected)?;
-
-        // Validate model exists in catalog
-        if !is_model_in_catalog(&selected_model) {
-            return Err(TranscriptionError::ModelNotFound(selected_model));
-        }
-
-        // Validate model is downloaded
-        let model_manager = app.state::<Arc<ModelManager>>();
-        if !model_manager.is_model_downloaded(&selected_model) {
-            return Err(TranscriptionError::ModelNotDownloaded(selected_model));
-        }
-
-        // Get ModelLoader from Tauri state
-        let loader = app.state::<Arc<ModelLoader>>();
-
-        Ok(Box::new(LocalTranscriber::new(
-            loader.inner().clone(),
-            selected_model,
-        )))
-    }
-
-    /// Create client from explicit config (for testing credentials).
-    fn create_client_from_explicit_config(config: &ApiConfig) -> Box<dyn TranscriptionClient> {
-        match config.provider {
-            Provider::OpenAI => Box::new(OpenAIClient::new(SecretString::from(
-                config.api_key.expose_secret().to_owned(),
-            ))),
             Provider::AzureOpenAI => Box::new(AzureClient::new(
-                SecretString::from(config.api_key.expose_secret().to_owned()),
-                config.endpoint.clone(),
+                Self::require_key(&credentials, preset.provider)?,
+                preset.base_url.clone().unwrap_or_default(),
+                options,
             )),
-            Provider::Local | Provider::OpenRouter | Provider::CustomEndpoint => {
-                // Local, OpenRouter, and Custom Endpoint do not use this path for testing.
-                // We provide a dummy client to satisfy the compiler's exhaustiveness check.
-                Box::new(OpenAIClient::new(SecretString::from(String::new())))
-            }
+            Provider::ElevenLabs => Box::new(ElevenLabsClient::new(
+                Self::require_key(&credentials, preset.provider)?,
+                options,
+            )),
+            Provider::CustomEndpoint => Box::new(CustomEndpointClient::new(
+                credentials.key().map(SecretString::from),
+                preset.base_url.clone().unwrap_or_default(),
+                options,
+            )),
+            Provider::OpenRouter => unreachable!("handled above"),
+        };
+
+        Ok(Box::new(ApiTranscriber::new(client)))
+    }
+
+    fn load_credentials(provider: Provider) -> Result<ProviderCredentials, TranscriptionError> {
+        let account = ProviderAccount::from(provider);
+        let stored = keychain::load_provider_config::<ProviderCredentials>(account)
+            .map_err(|_| TranscriptionError::ApiKeyMissing)?;
+
+        match stored {
+            Some(credentials) => Ok(credentials),
+            // A provider that needs no key is fine without a Keychain entry.
+            None if !provider.requires_api_key() => Ok(ProviderCredentials::default()),
+            None => Err(TranscriptionError::ApiKeyMissing),
         }
+    }
+
+    fn require_key(
+        credentials: &ProviderCredentials,
+        provider: Provider,
+    ) -> Result<SecretString, TranscriptionError> {
+        credentials.key().map(SecretString::from).ok_or_else(|| {
+            error!("No API key stored for {}", provider.display_name());
+            TranscriptionError::ApiKeyMissing
+        })
     }
 
     /// Validate file exists and is within size limits.

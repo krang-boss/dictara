@@ -1,13 +1,5 @@
-/* Only apply transparent background to recording-popup window */
-:root[data-window-path="recording-popup"] {
-  background-color: transparent !important;
-}
-
-[data-window-path="recording-popup"] body,
-[data-window-path="recording-popup"] html,
-[data-window-path="recording-popup"] #root {
-  margin: 0;
-  padding: 0;
-  background-color: transparent !important;
-  overflow: hidden;
-}
+/*
+ * The recording popup's window styling lives in index.css alongside the menu
+ * bar panel, since both windows share the same transparency requirements.
+ * This file is kept as the popup's import point for anything popup-specific.
+ */

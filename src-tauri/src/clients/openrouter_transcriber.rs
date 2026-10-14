@@ -7,18 +7,19 @@ use secrecy::{ExposeSecret, SecretString};
 use serde_json::json;
 
 use super::error::TranscriptionError;
+use super::options::TranscriptionOptions;
 use super::service::TranscriptionService;
 use super::transcriber::TRANSCRIPTION_TIMEOUT_SECS;
 
 /// OpenRouter Transcription Service (JSON + Base64)
 pub struct OpenRouterTranscriber {
     api_key: SecretString,
-    model: String,
+    options: TranscriptionOptions,
 }
 
 impl OpenRouterTranscriber {
-    pub fn new(api_key: SecretString, model: String) -> Self {
-        Self { api_key, model }
+    pub fn new(api_key: SecretString, options: TranscriptionOptions) -> Self {
+        Self { api_key, options }
     }
 }
 
@@ -42,13 +43,20 @@ impl TranscriptionService for OpenRouterTranscriber {
             .to_lowercase();
 
         // Build JSON body
-        let body = json!({
-            "model": self.model,
+        let mut body = json!({
+            "model": self.options.model,
             "input_audio": {
                 "data": base64_audio,
                 "format": format,
             }
         });
+
+        if let Some(language) = &self.options.language {
+            body["language"] = json!(language);
+        }
+        if let Some(prompt) = &self.options.prompt {
+            body["prompt"] = json!(prompt);
+        }
 
         // Create HTTP client with transcription timeout
         let http_client = reqwest::blocking::Client::builder()

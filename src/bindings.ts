@@ -13,6 +13,44 @@ export const commands = {
 async getAppVersion() : Promise<string> {
     return await TAURI_INVOKE("get_app_version");
 },
+/**
+ * Close the menu bar panel.
+ * 
+ * Used by the panel itself after an action that should dismiss it.
+ */
+async hideMenubarPanel() : Promise<void> {
+    await TAURI_INVOKE("hide_menubar_panel");
+},
+/**
+ * Open the preferences window, creating it if needed.
+ */
+async openPreferences() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_preferences") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Paste arbitrary text into the frontmost application.
+ * 
+ * Backs "paste again" in the history list.
+ */
+async pasteText(text: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("paste_text", { text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Quit the application.
+ */
+async quitApp() : Promise<void> {
+    await TAURI_INVOKE("quit_app");
+},
 async checkAccessibilityPermission() : Promise<boolean> {
     return await TAURI_INVOKE("check_accessibility_permission");
 },
@@ -50,267 +88,250 @@ async loadAppConfig() : Promise<Result<AppConfig, string>> {
 }
 },
 /**
- * Save app configuration (general-purpose command that can update multiple fields)
+ * Save app configuration. Only the fields that are passed get updated.
  */
-async saveAppConfig(activeProvider: string | null, recordingTrigger: RecordingTrigger | null, audioFormat: AudioFormat | null) : Promise<Result<null, string>> {
+async saveAppConfig(recordingTrigger: RecordingTrigger | null, historyRetentionDays: number | null) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_app_config", { activeProvider, recordingTrigger, audioFormat }) };
+    return { status: "ok", data: await TAURI_INVOKE("save_app_config", { recordingTrigger, historyRetentionDays }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get the currently active provider
+ * Load every preset plus the active selection.
  */
-async getCurrentProvider() : Promise<Result<Provider | null, string>> {
+async loadPresets() : Promise<Result<PresetsConfig, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_current_provider") };
+    return { status: "ok", data: await TAURI_INVOKE("load_presets") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Set the currently active provider
+ * Create a preset, or update it in place when the id already exists.
+ * 
+ * Returns the stored preset so the frontend picks up a generated id.
  */
-async setCurrentProvider(provider: string) : Promise<Result<null, string>> {
+async savePreset(preset: Preset) : Promise<Result<Preset, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("set_current_provider", { provider }) };
+    return { status: "ok", data: await TAURI_INVOKE("save_preset", { preset }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Clear the currently active provider (set to None)
+ * Duplicate a preset, appending it right after the original.
  */
-async clearCurrentProvider() : Promise<Result<null, string>> {
+async duplicatePreset(id: string) : Promise<Result<Preset, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("clear_current_provider") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async loadOpenaiConfig() : Promise<Result<OpenAIConfigStatus | null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("load_openai_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async saveOpenaiConfig(apiKey: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_openai_config", { apiKey }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteOpenaiConfig() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_openai_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async testOpenaiConfig(apiKey: string) : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("test_openai_config", { apiKey }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async loadAzureOpenaiConfig() : Promise<Result<AzureOpenAIConfigStatus | null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("load_azure_openai_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async saveAzureOpenaiConfig(apiKey: string, endpoint: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_azure_openai_config", { apiKey, endpoint }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteAzureOpenaiConfig() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_azure_openai_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async testAzureOpenaiConfig(apiKey: string, endpoint: string) : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("test_azure_openai_config", { apiKey, endpoint }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async loadOpenrouterConfig() : Promise<Result<OpenRouterConfigStatus | null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("load_openrouter_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async saveOpenrouterConfig(apiKey: string, model: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_openrouter_config", { apiKey, model }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteOpenrouterConfig() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_openrouter_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async testOpenrouterConfig(apiKey: string, model: string) : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("test_openrouter_config", { apiKey, model }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async loadCustomEndpointConfig() : Promise<Result<CustomEndpointConfigStatus | null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("load_custom_endpoint_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async saveCustomEndpointConfig(apiKey: string | null, baseUrl: string, model: string) : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("save_custom_endpoint_config", { apiKey, baseUrl, model }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async deleteCustomEndpointConfig() : Promise<Result<null, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_custom_endpoint_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async testCustomEndpointConfig(apiKey: string | null, baseUrl: string, model: string) : Promise<Result<boolean, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("test_custom_endpoint_config", { apiKey, baseUrl, model }) };
+    return { status: "ok", data: await TAURI_INVOKE("duplicate_preset", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get list of all available models with their current status
+ * Delete a preset. If it was active, the first remaining preset takes over.
  */
-async getAvailableModels() : Promise<ModelInfo[]> {
-    return await TAURI_INVOKE("get_available_models");
-},
-/**
- * Start downloading a model
- */
-async downloadModel(modelName: string) : Promise<Result<null, string>> {
+async deletePreset(id: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("download_model", { modelName }) };
+    return { status: "ok", data: await TAURI_INVOKE("delete_preset", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Cancel an ongoing model download
+ * Switch the active preset.
  */
-async cancelModelDownload(modelName: string) : Promise<Result<null, string>> {
+async setActivePreset(id: string | null) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cancel_model_download", { modelName }) };
+    return { status: "ok", data: await TAURI_INVOKE("set_active_preset", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Delete a downloaded model
+ * Move to the next preset in the list, wrapping around.
+ * 
+ * Used by the menu bar and the cycle shortcut.
  */
-async deleteModel(modelName: string) : Promise<Result<null, string>> {
+async cycleActivePreset() : Promise<Result<Preset | null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_model", { modelName }) };
+    return { status: "ok", data: await TAURI_INVOKE("cycle_active_preset") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Load a model into memory for transcription
+ * Reorder presets to match the given list of ids.
+ * 
+ * Ids that are not in the list keep their relative order at the end, so a
+ * stale frontend list cannot silently drop presets.
  */
-async loadModel(modelName: string) : Promise<Result<null, string>> {
+async reorderPresets(ids: string[]) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_model", { modelName }) };
+    return { status: "ok", data: await TAURI_INVOKE("reorder_presets", { ids }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Unload the currently loaded model (frees memory)
+ * Send a short silent clip through a preset to check it end to end.
+ * 
+ * `Ok(false)` means the credentials were rejected; `Err` means the request
+ * itself failed.
  */
-async unloadModel() : Promise<void> {
-    await TAURI_INVOKE("unload_model");
-},
-/**
- * Get the name of the currently loaded model
- */
-async getLoadedModel() : Promise<string | null> {
-    return await TAURI_INVOKE("get_loaded_model");
-},
-/**
- * Load local model configuration
- */
-async loadLocalModelConfig() : Promise<Result<LocalModelConfig | null, string>> {
+async testPreset(preset: Preset) : Promise<Result<boolean, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_local_model_config") };
+    return { status: "ok", data: await TAURI_INVOKE("test_preset", { preset }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Save local model configuration (selected model)
+ * List the supported providers and what each of them needs.
  */
-async saveLocalModelConfig(modelName: string) : Promise<Result<null, string>> {
+async listProviders() : Promise<ProviderInfo[]> {
+    return await TAURI_INVOKE("list_providers");
+},
+/**
+ * Report which providers have credentials stored.
+ */
+async listCredentials() : Promise<Result<CredentialStatus[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_local_model_config", { modelName }) };
+    return { status: "ok", data: await TAURI_INVOKE("list_credentials") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Delete local model configuration
+ * Store a provider's API key. An empty key deletes the entry instead.
  */
-async deleteLocalModelConfig() : Promise<Result<null, string>> {
+async saveCredentials(provider: Provider, apiKey: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_local_model_config") };
+    return { status: "ok", data: await TAURI_INVOKE("save_credentials", { provider, apiKey }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Remove a provider's API key from the Keychain.
+ */
+async deleteCredentials(provider: Provider) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_credentials", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Load the popup style, falling back to the default.
+ */
+async loadPopupStyle() : Promise<Result<PopupStyle, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("load_popup_style") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Save the popup style chosen in the laboratory.
+ */
+async savePopupStyle(style: PopupStyle) : Promise<Result<PopupStyle, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_popup_style", { style }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Restore the default popup style.
+ */
+async resetPopupStyle() : Promise<Result<PopupStyle, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reset_popup_style") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List history entries, newest first, optionally filtered and searched.
+ */
+async listHistory(query: HistoryQuery | null) : Promise<Result<HistoryEntry[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_history", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Fetch a single history entry.
+ */
+async getHistoryEntry(id: number) : Promise<Result<HistoryEntry | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_history_entry", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete one history entry. Returns whether it existed.
+ */
+async deleteHistoryEntry(id: number) : Promise<Result<boolean, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_history_entry", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete the entire history.
+ */
+async clearHistory() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_history") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Aggregate counts for the history screen.
+ */
+async historyStats() : Promise<Result<HistoryStats, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("history_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Apply the configured retention window right now.
+ * 
+ * Also runs on startup; exposed so changing the setting takes effect
+ * immediately instead of at the next launch.
+ */
+async pruneHistory() : Promise<Result<number, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("prune_history") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -518,13 +539,9 @@ async isAutostartSetupDone() : Promise<Result<boolean, string>> {
 
 export const events = __makeEvents__<{
 keyCaptureEvent: KeyCaptureEvent,
-modelDownloadStateChanged: ModelDownloadStateChanged,
-modelLoadingStateChanged: ModelLoadingStateChanged,
 recordingStateChanged: RecordingStateChanged
 }>({
 keyCaptureEvent: "key-capture-event",
-modelDownloadStateChanged: "model-download-state-changed",
-modelLoadingStateChanged: "model-loading-state-changed",
 recordingStateChanged: "recording-state-changed"
 })
 
@@ -535,15 +552,15 @@ recordingStateChanged: "recording-state-changed"
 /** user-defined types **/
 
 /**
- * App configuration (stored locally)
+ * App configuration (stored locally).
+ * 
+ * Provider and model selection moved to [`crate::presets`]; what is left here
+ * is genuinely app-wide.
  */
 export type AppConfig = { 
 /**
- * Currently active provider (only one can be active)
- */
-activeProvider: Provider | null; 
-/**
- * Key used to trigger recording (default: Fn)
+ * Key used to trigger recording. Superseded by `ShortcutsConfig`; kept
+ * because the shortcuts migration still reads it.
  */
 recordingTrigger?: RecordingTrigger; 
 /**
@@ -552,21 +569,70 @@ recordingTrigger?: RecordingTrigger;
  */
 autostartInitialSetupDone?: boolean; 
 /**
- * Audio format for transcription transmission (Wav or Mp3)
+ * How many days of transcription history to keep. 0 means "forever".
  */
-audioFormat?: AudioFormat }
+historyRetentionDays?: number }
 /**
  * Audio format options for transmission
  */
 export type AudioFormat = "wav" | "mp3"
 /**
- * Frontend-facing status for Azure OpenAI provider (never exposes API key)
+ * Whether a provider currently has a key stored.
  */
-export type AzureOpenAIConfigStatus = { configured: boolean; endpoint: string }
+export type CredentialStatus = { provider: Provider; configured: boolean }
 /**
- * Frontend-facing status for Custom Endpoint provider (never exposes API key)
+ * One recorded transcription.
  */
-export type CustomEndpointConfigStatus = { configured: boolean; baseUrl: string; model: string; hasApiKey: boolean }
+export type HistoryEntry = { id: number; 
+/**
+ * Unix timestamp in seconds.
+ */
+createdAt: number; 
+/**
+ * Length of the recording that produced this text.
+ */
+durationMs: number; text: string; 
+/**
+ * Preset that produced it. `None` if that preset has since been deleted.
+ */
+presetId: string | null; 
+/**
+ * Preset name captured at the time, so history stays readable after the
+ * preset is renamed or removed.
+ */
+presetName: string | null; provider: string | null; model: string | null; 
+/**
+ * Bundle id of the app the text was pasted into, when known.
+ */
+appBundleId: string | null; 
+/**
+ * Human-readable name of that app.
+ */
+appName: string | null }
+/**
+ * Filters for reading history back.
+ */
+export type HistoryQuery = { 
+/**
+ * Full-text search over the transcribed text. Empty means "everything".
+ */
+search?: string | null; 
+/**
+ * Only entries produced by this preset.
+ */
+presetId?: string | null; limit?: number; offset?: number }
+/**
+ * Aggregate numbers for the history screen.
+ */
+export type HistoryStats = { totalEntries: number; totalWords: number; 
+/**
+ * Total recorded audio duration, in milliseconds.
+ */
+totalDurationMs: number; 
+/**
+ * Timestamp of the oldest entry, if any.
+ */
+oldestAt: number | null }
 /**
  * Key capture event - streamed to frontend during shortcut configuration
  */
@@ -579,54 +645,6 @@ export type KeyCaptureEvent =
  * Key was released
  */
 { type: "keyUp"; keycode: number; label: string }
-/**
- * Local model provider configuration (stored in local store, not keychain)
- */
-export type LocalModelConfig = { 
-/**
- * Name of the selected model (e.g., "whisper-small")
- */
-selectedModel: string | null }
-/**
- * Model download state change event - single event stream for all download state transitions
- */
-export type ModelDownloadStateChanged = 
-/**
- * Download is in progress
- */
-{ state: "progress"; modelName: string; downloadedBytes: number; totalBytes: number; percentage: number } | 
-/**
- * Download complete, verifying checksum
- */
-{ state: "verifying"; modelName: string } | 
-/**
- * Download completed successfully
- */
-{ state: "complete"; modelName: string } | 
-/**
- * Download failed with an error
- */
-{ state: "error"; modelName: string; error: string }
-/**
- * Combined view sent to frontend (catalog + status merged).
- */
-export type ModelInfo = { name: string; displayName: string; description: string; sizeBytes: number; estimatedRamMb: number; isDownloaded: boolean; isDownloading: boolean; isLoaded: boolean; isLoading: boolean; downloadedBytes: number }
-/**
- * Model loading state change event - single event stream for all loading state transitions
- */
-export type ModelLoadingStateChanged = 
-/**
- * Model loading has started
- */
-{ state: "started"; modelName: string } | 
-/**
- * Model loaded successfully
- */
-{ state: "complete"; modelName: string } | 
-/**
- * Model loading failed with an error
- */
-{ state: "error"; modelName: string; error: string }
 /**
  * Onboarding configuration (stored locally)
  */
@@ -648,17 +666,88 @@ pendingRestart: boolean }
  */
 export type OnboardingStep = "welcome" | "accessibility" | "microphone" | "api_keys" | "shortcuts" | "fn_hold" | "fn_space" | "complete"
 /**
- * Frontend-facing status for OpenAI provider (never exposes API key)
+ * Everything the popup renderer needs to draw itself.
+ * 
+ * Values are normalized 0..1 unless noted, so the laboratory can expose them
+ * as plain sliders and the shader can use them directly.
  */
-export type OpenAIConfigStatus = { configured: boolean }
+export type PopupStyle = { 
 /**
- * Frontend-facing status for OpenRouter provider (never exposes API key)
+ * Id of the starting-point variant, kept so the UI can show what was picked
+ * even after the sliders have been nudged.
  */
-export type OpenRouterConfigStatus = { configured: boolean; model: string }
+variant: string; 
+/**
+ * Palette as `#rrggbb` strings, read as a ramp from the densest sky to the
+ * lit cloud bank.
+ */
+palette: string[]; 
+/**
+ * How fast the motion evolves.
+ */
+speed: number; 
+/**
+ * How much the flow is distorted — wispy versus churning.
+ */
+turbulence: number; 
+/**
+ * Edge falloff: crisp disc versus diffuse cloud.
+ */
+softness: number; 
+/**
+ * How far colours are pushed from grey.
+ */
+saturation: number; 
+/**
+ * How strongly the microphone level drives the motion.
+ */
+reactivity: number; 
+/**
+ * Rendered diameter in logical pixels.
+ */
+size: number; 
+/**
+ * Show the elapsed recording time under the orb.
+ */
+showTimer: boolean }
+/**
+ * A named transcription configuration.
+ */
+export type Preset = { id: string; name: string; provider: Provider; 
+/**
+ * Model identifier. For Azure this is informational — the deployment is
+ * part of `base_url`.
+ */
+model?: string; 
+/**
+ * Azure full transcription endpoint, or the base URL of an
+ * OpenAI-compatible server. Unused by the other providers.
+ */
+baseUrl?: string | null; 
+/**
+ * ISO-639-1 language hint. `None` means "let the provider detect it".
+ */
+language?: string | null; 
+/**
+ * Optional prompt to bias the transcription (proper nouns, jargon…).
+ */
+prompt?: string | null; 
+/**
+ * Whether to upload WAV as-is or transcode to MP3 first.
+ */
+audioFormat?: AudioFormat }
+/**
+ * The full set of presets plus which one is currently active.
+ */
+export type PresetsConfig = { presets?: Preset[]; activeId?: string | null }
 /**
  * Provider types supported by the application
  */
-export type Provider = "open_ai" | "azure_open_ai" | "local" | "open_router" | "custom_endpoint"
+export type Provider = "open_ai" | "azure_open_ai" | "open_router" | "eleven_labs" | "custom_endpoint"
+/**
+ * Static description of a provider, for building the preset editor.
+ */
+export type ProviderInfo = { provider: Provider; displayName: string; defaultModel: string; requiresBaseUrl: boolean; requiresModel: boolean; requiresApiKey: boolean }
 /**
  * Recording state change event - single event stream for all state transitions
  */

@@ -16,7 +16,7 @@ use std::process::Command;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 pub enum GlobeKeyBehavior {
-    /// Do Nothing (value 0) - perfect for Dictara
+    /// Do Nothing (value 0) - perfect for VoiceFlow
     DoNothing = 0,
     /// Change Input Source (value 1)
     ChangeInputSource = 1,
@@ -85,11 +85,11 @@ pub fn set_globe_key_behavior(behavior: GlobeKeyBehavior) -> Result<(), String> 
     }
 }
 
-/// Fix the Globe key setting if it would interfere with Dictara's Fn-based recording.
+/// Fix the Globe key setting if it would interfere with VoiceFlow's Fn-based recording.
 ///
 /// This is called during onboarding to silently configure the Globe key.
 /// We change to "Do Nothing" unless it's already set to "Do Nothing" or "Change Input Source"
-/// (both of which are compatible with Dictara).
+/// (both of which are compatible with VoiceFlow).
 ///
 /// "Show Emoji" and "Start Dictation" both interfere because they trigger system actions
 /// when the Fn key is pressed.
@@ -99,7 +99,7 @@ pub fn set_globe_key_behavior(behavior: GlobeKeyBehavior) -> Result<(), String> 
 pub fn fix_globe_key_if_needed() -> bool {
     let current = get_globe_key_behavior();
 
-    // Only these values are compatible with Dictara:
+    // Only these values are compatible with VoiceFlow:
     // - DoNothing (0): Fn key does nothing, perfect for us
     // - ChangeInputSource (1): Fn key switches input source, doesn't show UI
     //

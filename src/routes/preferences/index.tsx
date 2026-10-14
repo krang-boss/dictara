@@ -5,5 +5,5 @@ export const Route = createFileRoute('/preferences/')({
 })
 
 function PreferencesIndex() {
-  return <Navigate to="/preferences/api-keys" />
+  return <Navigate to="/preferences/presets" />
 }

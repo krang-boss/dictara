@@ -1,66 +1,60 @@
-import { Square, X } from 'lucide-react'
+import { Square } from 'lucide-react'
+import type { PopupStyle } from '@/bindings'
+import { Orb } from '@/components/orb/Orb'
 
 interface RecordingStateProps {
   elapsedMs: number
   smoothedLevel: number
-  onCancel: () => void
+  style: PopupStyle
   onStop: () => void
-  isCancelPending: boolean
   isStopPending: boolean
 }
 
-// Calculate inset shadow based on audio level
-// Creates a white glow from the edges inward when speaking
-function getInsetShadow(level: number): string {
-  const spreadSize = Math.round(level * 60) // 0-60px spread
-  const opacity = level * 0.3 // 0-0.3 opacity for subtle effect
-  return `inset 0 0 ${spreadSize}px rgba(255, 255, 255, ${opacity})`
-}
-
-// Format milliseconds to MM:SS
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-}
-
+/**
+ * Recording, in progress.
+ *
+ * The orb carries the whole state: it is alive, it reacts to your voice, and
+ * it is the only thing visible at rest. Controls fade in on hover so the
+ * default appearance stays a single moving shape over your work.
+ */
 export function RecordingState({
   elapsedMs,
   smoothedLevel,
-  onCancel,
+  style,
   onStop,
-  isCancelPending,
   isStopPending,
 }: RecordingStateProps) {
   return (
-    <div
-      className="flex flex-col items-center justify-center w-full h-full bg-gray-800"
-      style={{ boxShadow: getInsetShadow(smoothedLevel) }}
-    >
-      {/* Timer Display */}
-      <div className="text-gray-300 font-mono text-xs mb-2">{formatTime(elapsedMs)}</div>
+    <div className="group relative flex h-full w-full flex-col items-center justify-center gap-1">
+      <Orb style={style} state="recording" level={smoothedLevel} />
 
-      {/* Button Row */}
-      <div className="flex gap-2">
-        {/* Cancel Button */}
-        <button
-          onClick={onCancel}
-          disabled={isCancelPending}
-          className="w-6 h-6 aspect-square rounded-lg shrink-0 bg-gray-700 hover:bg-gray-600 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
-        >
-          <X className="w-4 h-4 text-white" strokeWidth={2.5} />
-        </button>
+      {style.showTimer && (
+        <span className="font-mono text-[11px] tabular-nums text-white/70 transition-opacity group-hover:opacity-0">
+          {formatTime(elapsedMs)}
+        </span>
+      )}
 
-        {/* Stop Recording Button */}
+      {/*
+        Stop only. Cancelling is Escape — a global shortcut, so it works without
+        the popup ever taking focus, which it deliberately never does.
+      */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         <button
           onClick={onStop}
           disabled={isStopPending}
-          className="w-6 h-6 aspect-square rounded-lg shrink-0 bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+          aria-label="Stop and transcribe"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 transition-colors hover:bg-black/80 disabled:opacity-50"
         >
-          <Square className="w-3 h-3 text-white" fill="white" strokeWidth={0} />
+          <Square className="h-2.5 w-2.5 text-white" fill="white" strokeWidth={0} />
         </button>
       </div>
     </div>
   )
+}
+
+function formatTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }

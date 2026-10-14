@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dictara</title>
+    <title>VoiceFlow</title>
     <style>
-      /* Critical CSS to prevent flash - matches ShadCN dark theme */
+      /* Critical CSS to prevent flash - matches the --background token */
       html.dark {
-        background-color: #0a0a0a;
+        background-color: #0e0e11;
         color-scheme: dark;
       }
       html.dark body {
-        background-color: #0a0a0a;
-        color: #fafafa;
+        background-color: #0e0e11;
+        color: #f4f4f6;
       }
       html:not(.dark) {
         background-color: #ffffff;
@@ -35,10 +35,10 @@
         const firstSegment = window.location.pathname.split('/').filter(Boolean)[0] || '';
         document.documentElement.setAttribute('data-window-path', firstSegment);
 
-        // Default to dark mode, remove if system is in light mode
-        // This prevents flicker by starting with dark theme
-        const isLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (isLight) {
+        // Every window follows the system appearance. The document starts
+        // marked dark so a dark desktop never flashes white; on a light one the
+        // class comes off before the first paint.
+        if (!window.matchMedia('(prefers-color-scheme: dark)').matches) {
           document.documentElement.classList.remove('dark');
         }
       })();

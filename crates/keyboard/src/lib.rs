@@ -7,9 +7,9 @@
 //! # Example
 //!
 //! ```no_run
-//! use dictara_keyboard::{grab, Event, EventType, Key};
+//! use voiceflow_keyboard::{grab, Event, EventType, Key};
 //!
-//! fn main() -> Result<(), dictara_keyboard::GrabError> {
+//! fn main() -> Result<(), voiceflow_keyboard::GrabError> {
 //!     grab(|event| {
 //!         match event.event_type {
 //!             EventType::KeyPress(Key::Function) => {
@@ -83,7 +83,7 @@ pub type GrabCallback = dyn FnMut(Event) -> Option<Event>;
 /// # Example
 ///
 /// ```no_run
-/// use dictara_keyboard::{grab, Event, EventType, Key};
+/// use voiceflow_keyboard::{grab, Event, EventType, Key};
 ///
 /// grab(|event| {
 ///     if let EventType::KeyPress(Key::Function) = event.event_type {

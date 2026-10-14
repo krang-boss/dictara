@@ -1,12 +1,16 @@
 use crate::recording::LastRecordingState;
 use crate::ui::{
     menu::{Menu, MenuId},
-    window,
+    panel, window,
 };
 use log::{error, warn};
 use std::str::FromStr;
 use tauri::{self, menu::MenuEvent, tray, Manager, Wry};
 
+/// The menu bar icon, rendered from `icons/tray-icon.svg`.
+///
+/// AppKit scales it to a fixed 18pt height, so the file is deliberately larger
+/// than that: the extra pixels are what keep the stroke sharp on Retina.
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../../icons/tray-icon.png");
 
 pub struct Tray {
@@ -39,9 +43,35 @@ impl Tray {
             .icon(icon)
             .icon_as_template(true) // macOS template image - auto-adapts to light/dark mode
             .menu(&menu.menu)
-            .show_menu_on_left_click(true)
+            // Left click opens the panel; the native menu stays on right click
+            // as an escape hatch if the panel ever fails to show.
+            .show_menu_on_left_click(false)
             .on_menu_event(Self::handle_menu_event)
+            .on_tray_icon_event(Self::handle_tray_event)
             .build(app)
+    }
+
+    /// Toggle the menu bar panel on a left click, anchored to the icon.
+    fn handle_tray_event(tray_icon: &tray::TrayIcon<Wry>, event: tray::TrayIconEvent) {
+        let tray::TrayIconEvent::Click {
+            button: tray::MouseButton::Left,
+            button_state: tray::MouseButtonState::Up,
+            rect,
+            ..
+        } = event
+        else {
+            return;
+        };
+
+        let icon_rect = match (rect.position, rect.size) {
+            (tauri::Position::Physical(position), tauri::Size::Physical(size)) => Some((
+                tauri::PhysicalPosition::new(position.x as f64, position.y as f64),
+                tauri::PhysicalSize::new(size.width as f64, size.height as f64),
+            )),
+            _ => None,
+        };
+
+        panel::toggle_panel(tray_icon.app_handle(), icon_rect);
     }
 
     fn handle_menu_event(app: &tauri::AppHandle<Wry>, event: MenuEvent) {

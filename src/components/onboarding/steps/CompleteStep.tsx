@@ -23,9 +23,9 @@ export function CompleteStep() {
   return (
     <StepContainer
       title="You're All Set!"
-      description="Dictara is ready to use."
+      description="VoiceFlow is ready to use."
       onNext={handleFinish}
-      nextLabel="Start Using Dictara"
+      nextLabel="Start Using VoiceFlow"
       showBack={false}
       showSkip={false}
       isLoading={finishOnboarding.isPending}
@@ -39,7 +39,7 @@ export function CompleteStep() {
 
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">
-            You've completed the setup! Here's a quick reminder of how to use Dictara:
+            You've completed the setup! Here's a quick reminder of how to use VoiceFlow:
           </p>
 
           <div className="grid gap-4 max-w-sm mx-auto">
@@ -63,7 +63,7 @@ export function CompleteStep() {
           </div>
 
           <p className="text-sm text-muted-foreground pt-4">
-            Look for the Dictara icon in your menu bar to access preferences.
+            Look for the VoiceFlow icon in your menu bar to access preferences.
           </p>
         </div>
       </div>

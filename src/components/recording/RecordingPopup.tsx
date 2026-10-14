@@ -7,13 +7,16 @@ import {
 import { useAudioLevel } from './hooks/useAudioLevel'
 import { useRecordingTimer } from './hooks/useRecordingTimer'
 import { useResizePopupForError } from '@/hooks/useRecording'
+import { usePopupStyle } from '@/hooks/usePopupStyle'
 import { RecordingState } from './states/RecordingState'
 import { TranscribingState } from './states/TranscribingState'
+import { FinishingState } from './states/FinishingState'
 import { ErrorState } from './states/ErrorState'
 
 function RecordingPopup() {
   const { smoothedLevel } = useAudioLevel()
   const resizePopupForError = useResizePopupForError()
+  const { data: style } = usePopupStyle()
 
   // Refs for timer functions (to break circular dependency)
   const timerFunctionsRef = useRef<{
@@ -50,11 +53,9 @@ function RecordingPopup() {
   const {
     state,
     error,
-    handleCancel,
     handleStop,
     handleRetry,
     handleDismiss,
-    isCancelPending,
     isStopPending,
     isRetryPending,
     isDismissPending,
@@ -65,10 +66,19 @@ function RecordingPopup() {
   // Update refs with timer functions
   timerFunctionsRef.current = { startTimer, cleanupTimer }
 
+  // The error state needs a readable surface; the orb states are meant to float
+  // free over whatever is behind them, with no chrome at all.
+  const isError = state === 'error' && !!error
+
   return (
-    <div className="w-screen h-screen rounded-2xl border-[2px] border-gray-600 bg-gray-800 overflow-hidden font-sans">
-      {/* Error State */}
-      {state === 'error' && error && (
+    <div
+      className={
+        isError
+          ? 'h-screen w-screen overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/95 font-sans backdrop-blur-xl'
+          : 'h-screen w-screen overflow-hidden font-sans'
+      }
+    >
+      {isError && (
         <ErrorState
           error={error}
           onRetry={handleRetry}
@@ -78,17 +88,16 @@ function RecordingPopup() {
         />
       )}
 
-      {/* Transcribing State */}
-      {state === 'transcribing' && <TranscribingState />}
+      {state === 'transcribing' && style && <TranscribingState style={style} />}
 
-      {/* Recording State */}
-      {state === 'recording' && (
+      {state === 'finishing' && style && <FinishingState style={style} />}
+
+      {state === 'recording' && style && (
         <RecordingState
           elapsedMs={elapsedMs}
           smoothedLevel={smoothedLevel}
-          onCancel={handleCancel}
+          style={style}
           onStop={handleStop}
-          isCancelPending={isCancelPending}
           isStopPending={isStopPending}
         />
       )}

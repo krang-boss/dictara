@@ -1,8 +1,7 @@
 import { commands } from '@/bindings'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { error as logError } from '@tauri-apps/plugin-log'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { ExternalLink, Sparkles, Keyboard, Settings } from 'lucide-react'
+import { Clock, Keyboard, Settings, Sparkles, Waves } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Separator } from '../ui/separator'
 import {
@@ -24,9 +23,19 @@ interface PreferencesLayoutProps {
 
 const menuItems = [
   {
-    title: 'Providers & Models',
-    url: '/preferences/api-keys',
+    title: 'Presets',
+    url: '/preferences/presets',
     icon: Sparkles,
+  },
+  {
+    title: 'History',
+    url: '/preferences/history',
+    icon: Clock,
+  },
+  {
+    title: 'Popup',
+    url: '/preferences/popup',
+    icon: Waves,
   },
   {
     title: 'Shortcuts',
@@ -59,10 +68,6 @@ export function PreferencesLayout({ children }: PreferencesLayoutProps) {
         logError(`[PreferencesLayout] Failed to load app version: ${e}`)
       })
   }, [])
-
-  const handleOpenGitHub = () => {
-    openUrl('https://github.com/vitalii-zinchenko/dictara')
-  }
 
   return (
     <SidebarProvider
@@ -98,17 +103,8 @@ export function PreferencesLayout({ children }: PreferencesLayoutProps) {
           <span className="font-medium">{pageTitle}</span>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-6">{children}</main>
-        <footer className="flex h-8 shrink-0 items-center justify-end gap-3 border-t bg-sidebar px-4 text-sm text-sidebar-foreground/70">
-          <button
-            type="button"
-            onClick={handleOpenGitHub}
-            className="flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <span>Source Code: github.com/vitalii-zinchenko/dictara</span>
-            <ExternalLink className="h-3 w-3" />
-          </button>
-          <span>•</span>
-          <span>{appVersion ? `v${appVersion}` : 'Loading...'}</span>
+        <footer className="flex h-8 shrink-0 items-center justify-end border-t bg-sidebar px-4 text-xs text-sidebar-foreground/60">
+          <span>{appVersion ? `VoiceFlow ${appVersion}` : ''}</span>
         </footer>
       </SidebarInset>
     </SidebarProvider>

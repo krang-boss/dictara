@@ -8,6 +8,14 @@ import { useRestartOnboarding } from '@/hooks/useOnboardingNavigation'
 import { useAppConfig } from '@/hooks/useAppConfig'
 import { useSaveAppConfig } from '@/hooks/useSaveAppConfig'
 
+const RETENTION_OPTIONS = [
+  { days: 30, label: '30 days' },
+  { days: 90, label: '90 days' },
+  { days: 365, label: '1 year' },
+  // 0 disables pruning entirely.
+  { days: 0, label: 'Forever' },
+]
+
 export function System() {
   const { data: isEnabled, isLoading: isCheckingStatus } = useIsAutostartEnabled()
   const { toggle, isLoading: isToggling } = useToggleAutostart()
@@ -23,11 +31,11 @@ export function System() {
     }
   }
 
-  const handleAudioFormatChange = async (format: 'wav' | 'mp3') => {
+  const handleRetentionChange = async (days: number) => {
     try {
-      await saveAppConfig.mutateAsync({ audioFormat: format })
+      await saveAppConfig.mutateAsync({ historyRetentionDays: days })
     } catch (e) {
-      logError(`[System] Failed to update audio format: ${e}`)
+      logError(`[System] Failed to update history retention: ${e}`)
     }
   }
 
@@ -35,7 +43,11 @@ export function System() {
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">System Settings</p>
-        <p className="text-sm">Configure how Dictara integrates with your system.</p>
+        <p className="text-sm">Configure how VoiceFlow integrates with your system.</p>
+        <p className="text-sm text-muted-foreground">
+          Audio upload format (WAV / MP3) moved to Presets — each preset carries its own, so you can
+          send MP3 to a metered provider and WAV to a local one.
+        </p>
       </div>
 
       <div className="flex items-center justify-between rounded-lg border p-4">
@@ -44,7 +56,7 @@ export function System() {
             Launch at Startup
           </Label>
           <p className="text-sm text-muted-foreground">
-            Automatically start Dictara when you log in to your computer
+            Automatically start VoiceFlow when you log in to your computer
           </p>
         </div>
         <Switch
@@ -57,31 +69,25 @@ export function System() {
 
       <div className="flex items-center justify-between rounded-lg border p-4">
         <div className="space-y-0.5">
-          <Label className="text-base">Audio Transmission Format</Label>
+          <Label className="text-base">Keep History For</Label>
           <p className="text-sm text-muted-foreground mr-6">
-            Choose format to send audio to API providers (OpenAI, OpenRouter, Custom, Azure). MP3
-            uses much less network bandwidth.
+            Transcribed text is stored locally so you can search and re-paste it. Audio is never
+            saved. Older entries are deleted automatically.
           </p>
         </div>
-        <div className="flex items-center gap-1 bg-accent/50 p-1 rounded-lg border shrink-0">
-          <Button
-            variant={appConfig?.audioFormat === 'wav' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => handleAudioFormatChange('wav')}
-            disabled={saveAppConfig.isPending}
-            className="h-8 text-xs font-medium px-3"
-          >
-            WAV
-          </Button>
-          <Button
-            variant={appConfig?.audioFormat === 'mp3' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => handleAudioFormatChange('mp3')}
-            disabled={saveAppConfig.isPending}
-            className="h-8 text-xs font-medium px-3"
-          >
-            MP3
-          </Button>
+        <div className="flex shrink-0 items-center gap-1 rounded-lg border bg-accent/50 p-1">
+          {RETENTION_OPTIONS.map((option) => (
+            <Button
+              key={option.days}
+              variant={appConfig?.historyRetentionDays === option.days ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => handleRetentionChange(option.days)}
+              disabled={saveAppConfig.isPending}
+              className="h-8 px-3 text-xs font-medium"
+            >
+              {option.label}
+            </Button>
+          ))}
         </div>
       </div>
 

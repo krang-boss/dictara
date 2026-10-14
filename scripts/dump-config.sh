@@ -2,9 +2,9 @@
 
 # Dump all config files for a specific Tauri app bundle
 # Usage: ./dump-config.sh <bundle-identifier>
-# Example: ./dump-config.sh app.dictara.dev
+# Example: ./dump-config.sh app.voiceflow.dev
 
-BUNDLE_ID="${1:-app.dictara.dev}"
+BUNDLE_ID="${1:-app.voiceflow.dev}"
 CONFIG_DIR="$HOME/Library/Application Support/$BUNDLE_ID"
 
 echo "========================================"

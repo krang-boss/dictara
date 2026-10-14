@@ -34,7 +34,7 @@ export function FnHoldStep() {
   return (
     <StepContainer
       title="Push to Talk"
-      description={`Learn the first way to use Dictara: hold ${shortcutLabel} while speaking.`}
+      description={`Learn the first way to use VoiceFlow: hold ${shortcutLabel} while speaking.`}
       onNext={handleNext}
       nextDisabled={!isComplete}
       onBack={() => goBack('fn_hold')}

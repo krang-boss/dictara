@@ -61,6 +61,7 @@ pub enum RecordingState {
 
 impl RecordingState {
     /// Check if the app is busy (recording, locked, or transcribing)
+    #[allow(dead_code)]
     pub fn is_busy(self) -> bool {
         self != Self::Ready
     }
@@ -106,6 +107,7 @@ impl RecordingStateManager {
     }
 
     /// Check if the app is busy (recording or locked)
+    #[allow(dead_code)]
     pub fn is_busy(&self) -> bool {
         self.current().is_busy()
     }
@@ -115,6 +117,17 @@ impl RecordingStateManager {
     #[allow(dead_code)]
     pub fn is_recording(&self) -> bool {
         self.current() == RecordingState::Recording
+    }
+
+    /// Check if the microphone is currently capturing, in either mode.
+    ///
+    /// Push-to-talk and hands-free are different states but the same situation
+    /// as far as "can this be cancelled" is concerned.
+    pub fn is_capturing(&self) -> bool {
+        matches!(
+            self.current(),
+            RecordingState::Recording | RecordingState::RecordingLocked
+        )
     }
 
     /// Check if currently in RecordingLocked state (hands-free mode)

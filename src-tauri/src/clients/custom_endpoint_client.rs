@@ -4,20 +4,25 @@ use secrecy::{ExposeSecret, SecretString};
 
 use super::client::TranscriptionClient;
 use super::error::TranscriptionError;
+use super::options::TranscriptionOptions;
 
 /// OpenAI-Compatible Custom Endpoint API client
 pub struct CustomEndpointClient {
     api_key: Option<SecretString>,
     base_url: String,
-    model: String,
+    options: TranscriptionOptions,
 }
 
 impl CustomEndpointClient {
-    pub fn new(api_key: Option<SecretString>, base_url: String, model: String) -> Self {
+    pub fn new(
+        api_key: Option<SecretString>,
+        base_url: String,
+        options: TranscriptionOptions,
+    ) -> Self {
         Self {
             api_key,
             base_url,
-            model,
+            options,
         }
     }
 }
@@ -59,10 +64,10 @@ impl TranscriptionClient for CustomEndpointClient {
                     e
                 )))
             })?
-            .text("model", self.model.clone())
+            .text("model", self.options.model.clone())
             .text("temperature", "0.0")
             .text("response_format", "json");
 
-        Ok(form)
+        Ok(self.options.apply_to_form(form))
     }
 }

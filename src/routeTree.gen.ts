@@ -15,9 +15,12 @@ import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as RecordingPopupIndexRouteImport } from './routes/recording-popup/index'
 import { Route as PreferencesIndexRouteImport } from './routes/preferences/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
+import { Route as MenubarIndexRouteImport } from './routes/menubar/index'
 import { Route as PreferencesSystemRouteImport } from './routes/preferences/system'
+import { Route as PreferencesPresetsRouteImport } from './routes/preferences/presets'
+import { Route as PreferencesPopupRouteImport } from './routes/preferences/popup'
 import { Route as PreferencesHotkeysRouteImport } from './routes/preferences/hotkeys'
-import { Route as PreferencesApiKeysRouteImport } from './routes/preferences/api-keys'
+import { Route as PreferencesHistoryRouteImport } from './routes/preferences/history'
 import { Route as OnboardingWelcomeRouteImport } from './routes/onboarding/welcome'
 import { Route as OnboardingShortcutsRouteImport } from './routes/onboarding/shortcuts'
 import { Route as OnboardingMicrophoneRouteImport } from './routes/onboarding/microphone'
@@ -57,9 +60,24 @@ const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OnboardingRouteRoute,
 } as any)
+const MenubarIndexRoute = MenubarIndexRouteImport.update({
+  id: '/menubar/',
+  path: '/menubar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PreferencesSystemRoute = PreferencesSystemRouteImport.update({
   id: '/system',
   path: '/system',
+  getParentRoute: () => PreferencesRouteRoute,
+} as any)
+const PreferencesPresetsRoute = PreferencesPresetsRouteImport.update({
+  id: '/presets',
+  path: '/presets',
+  getParentRoute: () => PreferencesRouteRoute,
+} as any)
+const PreferencesPopupRoute = PreferencesPopupRouteImport.update({
+  id: '/popup',
+  path: '/popup',
   getParentRoute: () => PreferencesRouteRoute,
 } as any)
 const PreferencesHotkeysRoute = PreferencesHotkeysRouteImport.update({
@@ -67,9 +85,9 @@ const PreferencesHotkeysRoute = PreferencesHotkeysRouteImport.update({
   path: '/hotkeys',
   getParentRoute: () => PreferencesRouteRoute,
 } as any)
-const PreferencesApiKeysRoute = PreferencesApiKeysRouteImport.update({
-  id: '/api-keys',
-  path: '/api-keys',
+const PreferencesHistoryRoute = PreferencesHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => PreferencesRouteRoute,
 } as any)
 const OnboardingWelcomeRoute = OnboardingWelcomeRouteImport.update({
@@ -125,9 +143,12 @@ export interface FileRoutesByFullPath {
   '/onboarding/microphone': typeof OnboardingMicrophoneRoute
   '/onboarding/shortcuts': typeof OnboardingShortcutsRoute
   '/onboarding/welcome': typeof OnboardingWelcomeRoute
-  '/preferences/api-keys': typeof PreferencesApiKeysRoute
+  '/preferences/history': typeof PreferencesHistoryRoute
   '/preferences/hotkeys': typeof PreferencesHotkeysRoute
+  '/preferences/popup': typeof PreferencesPopupRoute
+  '/preferences/presets': typeof PreferencesPresetsRoute
   '/preferences/system': typeof PreferencesSystemRoute
+  '/menubar': typeof MenubarIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/preferences/': typeof PreferencesIndexRoute
   '/recording-popup/': typeof RecordingPopupIndexRoute
@@ -141,9 +162,12 @@ export interface FileRoutesByTo {
   '/onboarding/microphone': typeof OnboardingMicrophoneRoute
   '/onboarding/shortcuts': typeof OnboardingShortcutsRoute
   '/onboarding/welcome': typeof OnboardingWelcomeRoute
-  '/preferences/api-keys': typeof PreferencesApiKeysRoute
+  '/preferences/history': typeof PreferencesHistoryRoute
   '/preferences/hotkeys': typeof PreferencesHotkeysRoute
+  '/preferences/popup': typeof PreferencesPopupRoute
+  '/preferences/presets': typeof PreferencesPresetsRoute
   '/preferences/system': typeof PreferencesSystemRoute
+  '/menubar': typeof MenubarIndexRoute
   '/onboarding': typeof OnboardingIndexRoute
   '/preferences': typeof PreferencesIndexRoute
   '/recording-popup': typeof RecordingPopupIndexRoute
@@ -161,9 +185,12 @@ export interface FileRoutesById {
   '/onboarding/microphone': typeof OnboardingMicrophoneRoute
   '/onboarding/shortcuts': typeof OnboardingShortcutsRoute
   '/onboarding/welcome': typeof OnboardingWelcomeRoute
-  '/preferences/api-keys': typeof PreferencesApiKeysRoute
+  '/preferences/history': typeof PreferencesHistoryRoute
   '/preferences/hotkeys': typeof PreferencesHotkeysRoute
+  '/preferences/popup': typeof PreferencesPopupRoute
+  '/preferences/presets': typeof PreferencesPresetsRoute
   '/preferences/system': typeof PreferencesSystemRoute
+  '/menubar/': typeof MenubarIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/preferences/': typeof PreferencesIndexRoute
   '/recording-popup/': typeof RecordingPopupIndexRoute
@@ -182,9 +209,12 @@ export interface FileRouteTypes {
     | '/onboarding/microphone'
     | '/onboarding/shortcuts'
     | '/onboarding/welcome'
-    | '/preferences/api-keys'
+    | '/preferences/history'
     | '/preferences/hotkeys'
+    | '/preferences/popup'
+    | '/preferences/presets'
     | '/preferences/system'
+    | '/menubar'
     | '/onboarding/'
     | '/preferences/'
     | '/recording-popup/'
@@ -198,9 +228,12 @@ export interface FileRouteTypes {
     | '/onboarding/microphone'
     | '/onboarding/shortcuts'
     | '/onboarding/welcome'
-    | '/preferences/api-keys'
+    | '/preferences/history'
     | '/preferences/hotkeys'
+    | '/preferences/popup'
+    | '/preferences/presets'
     | '/preferences/system'
+    | '/menubar'
     | '/onboarding'
     | '/preferences'
     | '/recording-popup'
@@ -217,9 +250,12 @@ export interface FileRouteTypes {
     | '/onboarding/microphone'
     | '/onboarding/shortcuts'
     | '/onboarding/welcome'
-    | '/preferences/api-keys'
+    | '/preferences/history'
     | '/preferences/hotkeys'
+    | '/preferences/popup'
+    | '/preferences/presets'
     | '/preferences/system'
+    | '/menubar/'
     | '/onboarding/'
     | '/preferences/'
     | '/recording-popup/'
@@ -229,6 +265,7 @@ export interface RootRouteChildren {
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
   PreferencesRouteRoute: typeof PreferencesRouteRouteWithChildren
   RecordingPopupRouteRoute: typeof RecordingPopupRouteRouteWithChildren
+  MenubarIndexRoute: typeof MenubarIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -275,11 +312,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingIndexRouteImport
       parentRoute: typeof OnboardingRouteRoute
     }
+    '/menubar/': {
+      id: '/menubar/'
+      path: '/menubar'
+      fullPath: '/menubar'
+      preLoaderRoute: typeof MenubarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/preferences/system': {
       id: '/preferences/system'
       path: '/system'
       fullPath: '/preferences/system'
       preLoaderRoute: typeof PreferencesSystemRouteImport
+      parentRoute: typeof PreferencesRouteRoute
+    }
+    '/preferences/presets': {
+      id: '/preferences/presets'
+      path: '/presets'
+      fullPath: '/preferences/presets'
+      preLoaderRoute: typeof PreferencesPresetsRouteImport
+      parentRoute: typeof PreferencesRouteRoute
+    }
+    '/preferences/popup': {
+      id: '/preferences/popup'
+      path: '/popup'
+      fullPath: '/preferences/popup'
+      preLoaderRoute: typeof PreferencesPopupRouteImport
       parentRoute: typeof PreferencesRouteRoute
     }
     '/preferences/hotkeys': {
@@ -289,11 +347,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PreferencesHotkeysRouteImport
       parentRoute: typeof PreferencesRouteRoute
     }
-    '/preferences/api-keys': {
-      id: '/preferences/api-keys'
-      path: '/api-keys'
-      fullPath: '/preferences/api-keys'
-      preLoaderRoute: typeof PreferencesApiKeysRouteImport
+    '/preferences/history': {
+      id: '/preferences/history'
+      path: '/history'
+      fullPath: '/preferences/history'
+      preLoaderRoute: typeof PreferencesHistoryRouteImport
       parentRoute: typeof PreferencesRouteRoute
     }
     '/onboarding/welcome': {
@@ -384,15 +442,19 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
 )
 
 interface PreferencesRouteRouteChildren {
-  PreferencesApiKeysRoute: typeof PreferencesApiKeysRoute
+  PreferencesHistoryRoute: typeof PreferencesHistoryRoute
   PreferencesHotkeysRoute: typeof PreferencesHotkeysRoute
+  PreferencesPopupRoute: typeof PreferencesPopupRoute
+  PreferencesPresetsRoute: typeof PreferencesPresetsRoute
   PreferencesSystemRoute: typeof PreferencesSystemRoute
   PreferencesIndexRoute: typeof PreferencesIndexRoute
 }
 
 const PreferencesRouteRouteChildren: PreferencesRouteRouteChildren = {
-  PreferencesApiKeysRoute: PreferencesApiKeysRoute,
+  PreferencesHistoryRoute: PreferencesHistoryRoute,
   PreferencesHotkeysRoute: PreferencesHotkeysRoute,
+  PreferencesPopupRoute: PreferencesPopupRoute,
+  PreferencesPresetsRoute: PreferencesPresetsRoute,
   PreferencesSystemRoute: PreferencesSystemRoute,
   PreferencesIndexRoute: PreferencesIndexRoute,
 }
@@ -415,6 +477,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
   PreferencesRouteRoute: PreferencesRouteRouteWithChildren,
   RecordingPopupRouteRoute: RecordingPopupRouteRouteWithChildren,
+  MenubarIndexRoute: MenubarIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

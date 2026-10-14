@@ -1,11 +1,10 @@
 {
-  "name": "dictara",
+  "name": "voiceflow",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "land": "cd landing && npm run dev",
     "dev:tauri": "./scripts/with-env.sh sh -c 'mkdir -p .logs && tauri dev 2>&1 | tee .logs/app.log'",
     "dev:tauri:no-reload": "./scripts/with-env.sh sh -c 'mkdir -p .logs && tauri dev --no-watch 2>&1 | tee .logs/app.log'",
     "build": "tsc && vite build",
@@ -20,9 +19,9 @@
     "be:build:apple:silicon": "cd src-tauri && cargo build --target aarch64-apple-darwin",
     "be:build:apple:intel": "cd src-tauri && cargo build --target x86_64-apple-darwin",
     "verify": "npm run fe:check && npm run fe:format && npm run be:format && npm run be:lint && npm run be:check && npm run be:check-release && npm run be:build:apple:silicon && npm run be:build:apple:intel",
-    "release:local": "./scripts/with-env.sh sh -c 'tauri build && open src-tauri/target/release/bundle/macos/Dictara.app'",
-    "get-config": "./scripts/dump-config.sh app.dictara",
-    "get-config:dev": "./scripts/dump-config.sh app.dictara.dev",
+    "release:local": "./scripts/with-env.sh sh -c 'tauri build && open src-tauri/target/release/bundle/macos/VoiceFlow.app'",
+    "get-config": "./scripts/dump-config.sh app.voiceflow",
+    "get-config:dev": "./scripts/dump-config.sh app.voiceflow.dev",
     "prepare": "husky"
   },
   "dependencies": {
@@ -44,7 +43,6 @@
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-process": "^2",
-    "@tauri-apps/plugin-updater": "^2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ldrs": "^1.1.9",

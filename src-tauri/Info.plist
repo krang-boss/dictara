@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Dictara needs microphone access to record audio when you press the FN key.</string>
+    <string>VoiceFlow needs microphone access to record audio when you press the FN key.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>Dictara needs accessibility access to detect when you press the FN key to start voice recording.</string>
+    <string>VoiceFlow needs accessibility access to detect when you press the FN key to start voice recording.</string>
 </dict>
 </plist>

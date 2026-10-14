@@ -1,7 +1,6 @@
 use crate::config::ShortcutsConfig;
 use crate::recording::{RecordingCommand, RecordingStateManager};
 use crate::shortcuts::events::KeyCaptureEvent;
-use dictara_keyboard::{grab, Event, EventType};
 use log::{error, info};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,6 +8,7 @@ use std::thread::{self, JoinHandle};
 use tauri::AppHandle;
 use tauri_specta::Event as EventTrait;
 use tokio::sync::mpsc;
+use voiceflow_keyboard::{grab, Event, EventType, Key};
 
 /// Operating mode for the keyboard listener
 enum ListenerMode {
@@ -109,6 +109,15 @@ impl KeyListener {
         match event.event_type {
             EventType::KeyPress(key) => {
                 let keycode = key.to_macos_keycode();
+
+                // Escape abandons the recording outright: the audio is discarded
+                // and nothing is transcribed. Handled before shortcut matching so
+                // it works regardless of what else is held down, and swallowed so
+                // the key does not also reach the app underneath.
+                if key == Key::Escape && state_manager.is_capturing() {
+                    let _ = command_tx.blocking_send(RecordingCommand::Cancel);
+                    return None;
+                }
 
                 // Check if shortcut was matched BEFORE inserting new key (rising edge detection)
                 let was_push_to_record = shortcuts.push_to_record.matches(pressed_keys);

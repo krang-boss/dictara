@@ -36,7 +36,7 @@ export function FnSpaceStep() {
   return (
     <StepContainer
       title="Hands-Free Mode"
-      description="Learn the second way to use Dictara: toggle recording on and off."
+      description="Learn the second way to use VoiceFlow: toggle recording on and off."
       onNext={handleNext}
       nextDisabled={!isComplete}
       onBack={() => goBack('fn_space')}

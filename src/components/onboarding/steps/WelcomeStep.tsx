@@ -7,7 +7,7 @@ export function WelcomeStep() {
 
   return (
     <StepContainer
-      title="Welcome to Dictara"
+      title="Welcome to VoiceFlow"
       description="Your voice-to-text companion for macOS"
       onNext={() => goNext('welcome')}
       onSkip={() => skipOnboarding.mutate()}
@@ -24,7 +24,7 @@ export function WelcomeStep() {
 
         <div className="space-y-4 text-center max-w-md mx-auto">
           <p className="text-muted-foreground">
-            Dictara lets you dictate text anywhere on your Mac using simple keyboard shortcuts.
+            VoiceFlow lets you dictate text anywhere on your Mac using simple keyboard shortcuts.
           </p>
 
           <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2">

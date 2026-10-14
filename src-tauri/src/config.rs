@@ -1,7 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Provider types supported by the application
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 pub enum Provider {
     #[serde(rename = "open_ai", alias = "openai", alias = "open_a_i")]
     OpenAI,
@@ -12,12 +12,61 @@ pub enum Provider {
         alias = "azure_open_a_i"
     )]
     AzureOpenAI,
-    #[serde(rename = "local")]
-    Local,
     #[serde(rename = "open_router", alias = "openrouter")]
     OpenRouter,
+    #[serde(rename = "eleven_labs", alias = "elevenlabs", alias = "elevenLabs")]
+    ElevenLabs,
     #[serde(rename = "custom_endpoint", alias = "customEndpoint")]
     CustomEndpoint,
+}
+
+impl Provider {
+    /// Every provider, in the order they are offered in the UI.
+    pub const ALL: [Provider; 5] = [
+        Provider::OpenAI,
+        Provider::AzureOpenAI,
+        Provider::OpenRouter,
+        Provider::ElevenLabs,
+        Provider::CustomEndpoint,
+    ];
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Provider::OpenAI => "OpenAI",
+            Provider::AzureOpenAI => "Azure OpenAI",
+            Provider::OpenRouter => "OpenRouter",
+            Provider::ElevenLabs => "ElevenLabs",
+            Provider::CustomEndpoint => "Custom Endpoint",
+        }
+    }
+
+    /// Model preselected when a new preset is created for this provider.
+    pub fn default_model(self) -> &'static str {
+        match self {
+            Provider::OpenAI => "whisper-1",
+            // Azure encodes the deployment in the endpoint URL.
+            Provider::AzureOpenAI => "",
+            Provider::OpenRouter => "openai/whisper-1",
+            Provider::ElevenLabs => "scribe_v1",
+            Provider::CustomEndpoint => "whisper-1",
+        }
+    }
+
+    /// Whether the preset must carry a URL of its own.
+    pub fn requires_base_url(self) -> bool {
+        matches!(self, Provider::AzureOpenAI | Provider::CustomEndpoint)
+    }
+
+    /// Whether the preset must name a model (Azure gets it from the URL).
+    pub fn requires_model(self) -> bool {
+        !matches!(self, Provider::AzureOpenAI)
+    }
+
+    /// Whether an API key is mandatory. Self-hosted OpenAI-compatible servers
+    /// often need none.
+    pub fn requires_api_key(self) -> bool {
+        !matches!(self, Provider::CustomEndpoint)
+    }
 }
 
 /// Recording trigger key options
@@ -34,12 +83,12 @@ pub enum RecordingTrigger {
 impl RecordingTrigger {
     /// Convert to the keyboard crate's Key type
     #[allow(dead_code)]
-    pub fn to_key(self) -> dictara_keyboard::Key {
+    pub fn to_key(self) -> voiceflow_keyboard::Key {
         match self {
-            RecordingTrigger::Fn => dictara_keyboard::Key::Function,
-            RecordingTrigger::Control => dictara_keyboard::Key::ControlLeft,
-            RecordingTrigger::Option => dictara_keyboard::Key::Alt,
-            RecordingTrigger::Command => dictara_keyboard::Key::MetaLeft,
+            RecordingTrigger::Fn => voiceflow_keyboard::Key::Function,
+            RecordingTrigger::Control => voiceflow_keyboard::Key::ControlLeft,
+            RecordingTrigger::Option => voiceflow_keyboard::Key::Alt,
+            RecordingTrigger::Command => voiceflow_keyboard::Key::MetaLeft,
         }
     }
 }
@@ -94,8 +143,8 @@ pub struct ShortcutsConfig {
 
 impl Default for ShortcutsConfig {
     fn default() -> Self {
-        let fn_key = dictara_keyboard::Key::Function;
-        let space_key = dictara_keyboard::Key::Space;
+        let fn_key = voiceflow_keyboard::Key::Function;
+        let space_key = voiceflow_keyboard::Key::Space;
 
         Self {
             push_to_record: Shortcut {
@@ -131,7 +180,7 @@ pub struct ConfigKey<T> {
 }
 
 impl<T> ConfigKey<T> {
-    const fn new(name: &'static str) -> Self {
+    pub(crate) const fn new(name: &'static str) -> Self {
         Self {
             name,
             _phantom: PhantomData,
@@ -155,23 +204,38 @@ pub enum AudioFormat {
 
 // ===== App Configuration =====
 
-/// App configuration (stored locally)
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, specta::Type)]
+/// App configuration (stored locally).
+///
+/// Provider and model selection moved to [`crate::presets`]; what is left here
+/// is genuinely app-wide.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
-    /// Currently active provider (only one can be active)
-    #[serde(alias = "active_provider")]
-    pub active_provider: Option<Provider>,
-    /// Key used to trigger recording (default: Fn)
+    /// Key used to trigger recording. Superseded by `ShortcutsConfig`; kept
+    /// because the shortcuts migration still reads it.
     #[serde(default, alias = "recording_trigger")]
     pub recording_trigger: RecordingTrigger,
     /// Whether autostart has been set up on first launch
     /// This prevents re-enabling autostart after user manually disables it
     #[serde(default)]
     pub autostart_initial_setup_done: bool,
-    /// Audio format for transcription transmission (Wav or Mp3)
-    #[serde(default, alias = "audio_format")]
-    pub audio_format: AudioFormat,
+    /// How many days of transcription history to keep. 0 means "forever".
+    #[serde(default = "default_history_retention_days")]
+    pub history_retention_days: u32,
+}
+
+fn default_history_retention_days() -> u32 {
+    90
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            recording_trigger: RecordingTrigger::default(),
+            autostart_initial_setup_done: false,
+            history_retention_days: default_history_retention_days(),
+        }
+    }
 }
 
 impl ConfigKey<AppConfig> {
@@ -222,115 +286,37 @@ impl ConfigKey<OnboardingConfig> {
     pub const ONBOARDING: Self = Self::new("onboardingConfig");
 }
 
-// ===== Local Model Configuration =====
-
-/// Local model provider configuration (stored in local store, not keychain)
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalModelConfig {
-    /// Name of the selected model (e.g., "whisper-small")
-    pub selected_model: Option<String>,
-}
-
-impl ConfigKey<LocalModelConfig> {
-    #[allow(dead_code)]
-    pub const LOCAL_MODEL: Self = Self::new("localModelConfig");
-}
-
-// ===== Telemetry Configuration =====
-
-/// Telemetry configuration (stored locally)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TelemetryConfig {
-    /// Anonymous device ID (generated once on first launch)
-    pub device_id: String,
-    /// Whether user has opted into telemetry
-    #[serde(default)]
-    pub telemetry_enabled: bool,
-    /// Timestamp of last session start (Unix timestamp in seconds)
-    /// Used to detect midnight boundary crossing for daily session refresh
-    #[serde(default)]
-    pub last_session_start: Option<u64>,
-}
-
-impl ConfigKey<TelemetryConfig> {
-    #[allow(dead_code)]
-    pub const TELEMETRY: Self = Self::new("telemetryConfig");
-}
-
 impl ConfigKey<ShortcutsConfig> {
     #[allow(dead_code)]
     pub const SHORTCUTS: Self = Self::new("shortcutsConfig");
 }
 
-// ===== Keychain-stored Configurations (no keys) =====
+// ===== Keychain-stored Credentials =====
 
-/// OpenAI provider configuration (stored in keychain)
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
+/// The only thing that belongs in the Keychain: the secret itself.
+///
+/// Everything else a provider needs (model, endpoint, language) lives in the
+/// preset, so changing it never has to touch the Keychain.
+#[derive(Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct OpenAIConfig {
-    pub api_key: String,
-}
-
-impl std::fmt::Debug for OpenAIConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OpenAIConfig")
-            .field("api_key", &"[REDACTED]")
-            .finish()
-    }
-}
-
-/// Azure OpenAI provider configuration (stored in keychain)
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AzureOpenAIConfig {
-    pub api_key: String,
-    pub endpoint: String,
-}
-
-impl std::fmt::Debug for AzureOpenAIConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AzureOpenAIConfig")
-            .field("api_key", &"[REDACTED]")
-            .field("endpoint", &self.endpoint)
-            .finish()
-    }
-}
-
-/// OpenRouter provider configuration (stored in keychain)
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenRouterConfig {
-    pub api_key: String,
-    pub model: String,
-}
-
-impl std::fmt::Debug for OpenRouterConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OpenRouterConfig")
-            .field("api_key", &"[REDACTED]")
-            .field("model", &self.model)
-            .finish()
-    }
-}
-
-/// Custom Endpoint provider configuration (stored in keychain)
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomEndpointConfig {
+pub struct ProviderCredentials {
+    /// `None` for providers that accept unauthenticated requests.
+    #[serde(default)]
     pub api_key: Option<String>,
-    pub base_url: String,
-    pub model: String,
 }
 
-impl std::fmt::Debug for CustomEndpointConfig {
+impl std::fmt::Debug for ProviderCredentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CustomEndpointConfig")
-            .field("api_key", &"[REDACTED]")
-            .field("base_url", &self.base_url)
-            .field("model", &self.model)
+        f.debug_struct("ProviderCredentials")
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
             .finish()
+    }
+}
+
+impl ProviderCredentials {
+    /// A usable, non-blank key, if there is one.
+    pub fn key(&self) -> Option<&str> {
+        self.api_key.as_deref().filter(|k| !k.trim().is_empty())
     }
 }
 
@@ -339,6 +325,7 @@ impl std::fmt::Debug for CustomEndpointConfig {
 pub trait ConfigStore {
     fn get<T: DeserializeOwned>(&self, key: &ConfigKey<T>) -> Option<T>;
     fn set<T: Serialize>(&self, key: &ConfigKey<T>, value: T) -> Result<(), String>;
+    #[allow(dead_code)]
     fn delete<T>(&self, key: &ConfigKey<T>) -> Result<(), String>;
 }
 
@@ -396,7 +383,7 @@ pub fn migrate_trigger_to_shortcuts(store: &impl ConfigStore) -> Result<(), Stri
     };
 
     // Create new shortcuts config preserving user's trigger choice
-    let space_key = dictara_keyboard::Key::Space;
+    let space_key = voiceflow_keyboard::Key::Space;
     let shortcuts = ShortcutsConfig {
         push_to_record: Shortcut {
             keys: vec![trigger_key.clone()],
@@ -463,10 +450,9 @@ mod tests {
             "AppConfig with all fields set",
             ConfigKey::APP,
             AppConfig {
-                active_provider: Some(Provider::OpenAI),
                 recording_trigger: RecordingTrigger::Control,
                 autostart_initial_setup_done: false,
-                audio_format: AudioFormat::Wav,
+                history_retention_days: 30,
             },
         )];
 
@@ -513,38 +499,6 @@ mod tests {
                     finished: true,
                     current_step: OnboardingStep::Complete,
                     pending_restart: false,
-                },
-            ),
-        ];
-
-        for (description, key, config) in test_cases {
-            let store = MockConfigStore::new();
-            test_config_lifecycle(&store, &key, config, description);
-        }
-    }
-
-    #[test]
-    fn test_local_model_config_store() {
-        let test_cases = vec![
-            (
-                "LocalModelConfig with model selected",
-                ConfigKey::LOCAL_MODEL,
-                LocalModelConfig {
-                    selected_model: Some("whisper-small".to_string()),
-                },
-            ),
-            (
-                "LocalModelConfig with no model",
-                ConfigKey::LOCAL_MODEL,
-                LocalModelConfig {
-                    selected_model: None,
-                },
-            ),
-            (
-                "LocalModelConfig with large model",
-                ConfigKey::LOCAL_MODEL,
-                LocalModelConfig {
-                    selected_model: Some("whisper-large-v3".to_string()),
                 },
             ),
         ];

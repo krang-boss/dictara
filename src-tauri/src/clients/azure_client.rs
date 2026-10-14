@@ -4,6 +4,7 @@ use secrecy::{ExposeSecret, SecretString};
 
 use super::client::TranscriptionClient;
 use super::error::TranscriptionError;
+use super::options::TranscriptionOptions;
 
 const AZURE_API_VERSION: &str = "2024-06-01";
 
@@ -11,11 +12,16 @@ const AZURE_API_VERSION: &str = "2024-06-01";
 pub struct AzureClient {
     api_key: SecretString,
     endpoint: String,
+    options: TranscriptionOptions,
 }
 
 impl AzureClient {
-    pub fn new(api_key: SecretString, endpoint: String) -> Self {
-        Self { api_key, endpoint }
+    pub fn new(api_key: SecretString, endpoint: String, options: TranscriptionOptions) -> Self {
+        Self {
+            api_key,
+            endpoint,
+            options,
+        }
     }
 }
 
@@ -53,6 +59,6 @@ impl TranscriptionClient for AzureClient {
             .text("temperature", "0.0")
             .text("response_format", "json");
 
-        Ok(form)
+        Ok(self.options.apply_to_form(form))
     }
 }

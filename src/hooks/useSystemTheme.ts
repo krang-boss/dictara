@@ -1,50 +1,44 @@
 import { useEffect } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 
-const THEME_ENABLED_WINDOWS = ['onboarding', 'preferences']
+/**
+ * Windows that paint no surface of their own and so cannot be themed.
+ *
+ * The recording popup floats free over whatever is behind it; giving it a
+ * background — light or dark — would put a rectangle around the orb.
+ */
+const UNTHEMED_WINDOWS = ['recording-popup']
 
+/**
+ * Follow the system appearance.
+ *
+ * Every window that has a surface — preferences, onboarding and the menu bar
+ * panel — uses the same tokens and the same source of truth, so the app never
+ * shows a light panel next to a dark one. The initial class is set by the
+ * inline script in `index.html` to avoid a flash; this only keeps it in sync
+ * when the user switches appearance while the app is running.
+ */
 export function useSystemTheme() {
   useEffect(() => {
-    const setupTheme = async () => {
-      // Get current window label
-      const currentWindow = getCurrentWindow()
-      const windowLabel = currentWindow.label
+    // Set by the inline script in index.html, from the first path segment —
+    // available synchronously, unlike the Tauri window label.
+    const windowPath = document.documentElement.dataset.windowPath ?? ''
 
-      // Check if this window should have theme support
-      const isThemeEnabled = THEME_ENABLED_WINDOWS.includes(windowLabel)
-
-      // If this window shouldn't have theme support (e.g., recording-popup),
-      // remove the dark class that might have been applied by the inline script
-      if (!isThemeEnabled) {
-        document.documentElement.classList.remove('dark')
-        return
-      }
-
-      // For theme-enabled windows, the inline script in index.html already
-      // applied the initial theme, so we just need to listen for changes
-      const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)')
-
-      const applyDarkMode = (isDark: boolean) => {
-        if (isDark) {
-          document.documentElement.classList.add('dark')
-        } else {
-          document.documentElement.classList.remove('dark')
-        }
-      }
-
-      // Listen for system theme changes
-      const handleChange = (e: MediaQueryListEvent) => {
-        applyDarkMode(e.matches)
-      }
-
-      darkModeQuery.addEventListener('change', handleChange)
-
-      // Cleanup
-      return () => {
-        darkModeQuery.removeEventListener('change', handleChange)
-      }
+    if (UNTHEMED_WINDOWS.includes(windowPath)) {
+      document.documentElement.classList.remove('dark')
+      return
     }
 
-    setupTheme()
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+    const applyDarkMode = (isDark: boolean) => {
+      document.documentElement.classList.toggle('dark', isDark)
+    }
+
+    applyDarkMode(darkModeQuery.matches)
+
+    const handleChange = (event: MediaQueryListEvent) => applyDarkMode(event.matches)
+    darkModeQuery.addEventListener('change', handleChange)
+
+    return () => darkModeQuery.removeEventListener('change', handleChange)
   }, [])
 }

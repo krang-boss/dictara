@@ -10,19 +10,12 @@ pub enum TranscriptionError {
     IoError(#[from] std::io::Error),
     #[error("API key not configured")]
     ApiKeyMissing,
+    #[error("No transcription preset selected")]
+    NoPresetSelected,
+    #[error("Preset '{0}' is missing required settings")]
+    PresetIncomplete(String),
     #[error("Transcription timed out after {0} seconds")]
     TranscriptionTimeout(u64),
-    // Local model errors
-    #[error("No local model selected")]
-    NoModelSelected,
-    #[error("Model not found in catalog: {0}")]
-    ModelNotFound(String),
-    #[error("Model not downloaded: {0}")]
-    ModelNotDownloaded(String),
-    #[error("Failed to load model: {0}")]
-    ModelLoadFailed(String),
-    #[error("Local transcription failed: {0}")]
-    LocalTranscriptionFailed(String),
 }
 
 // TODO: this should be moved to the controller layer
@@ -53,26 +46,14 @@ impl TranscriptionError {
             TranscriptionError::ApiKeyMissing => {
                 "API key not configured. Please add it in Preferences.".to_string()
             }
+            TranscriptionError::NoPresetSelected => {
+                "No transcription preset selected. Pick one in Preferences.".to_string()
+            }
+            TranscriptionError::PresetIncomplete(name) => {
+                format!("Preset '{}' is missing required settings.", name)
+            }
             TranscriptionError::TranscriptionTimeout(_) => {
                 "Transcription took too long. Try again.".to_string()
-            }
-            TranscriptionError::NoModelSelected => {
-                "No local model selected. Please select a model in Preferences.".to_string()
-            }
-            TranscriptionError::ModelNotFound(name) => {
-                format!("Model '{}' not found. Please select a valid model.", name)
-            }
-            TranscriptionError::ModelNotDownloaded(name) => {
-                format!(
-                    "Model '{}' is not downloaded. Please download it first.",
-                    name
-                )
-            }
-            TranscriptionError::ModelLoadFailed(msg) => {
-                format!("Failed to load model: {}", msg)
-            }
-            TranscriptionError::LocalTranscriptionFailed(msg) => {
-                format!("Local transcription failed: {}", msg)
             }
         }
     }

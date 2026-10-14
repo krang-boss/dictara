@@ -4,18 +4,29 @@ use secrecy::{ExposeSecret, SecretString};
 
 use super::client::TranscriptionClient;
 use super::error::TranscriptionError;
+use super::options::TranscriptionOptions;
 
 const OPENAI_TRANSCRIPTION_URL: &str = "https://api.openai.com/v1/audio/transcriptions";
-const OPENAI_MODEL: &str = "whisper-1";
+const OPENAI_DEFAULT_MODEL: &str = "whisper-1";
 
 /// OpenAI Whisper API client
 pub struct OpenAIClient {
     api_key: SecretString,
+    options: TranscriptionOptions,
 }
 
 impl OpenAIClient {
-    pub fn new(api_key: SecretString) -> Self {
-        Self { api_key }
+    pub fn new(api_key: SecretString, options: TranscriptionOptions) -> Self {
+        Self { api_key, options }
+    }
+
+    fn model(&self) -> &str {
+        let model = self.options.model.trim();
+        if model.is_empty() {
+            OPENAI_DEFAULT_MODEL
+        } else {
+            model
+        }
     }
 }
 
@@ -43,10 +54,10 @@ impl TranscriptionClient for OpenAIClient {
                     e
                 )))
             })?
-            .text("model", OPENAI_MODEL)
+            .text("model", self.model().to_string())
             .text("temperature", "0.0")
             .text("response_format", "json");
 
-        Ok(form)
+        Ok(self.options.apply_to_form(form))
     }
 }

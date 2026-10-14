@@ -6,7 +6,7 @@ Also, you can clone source code for other libraries if you need into `~/ai-conte
 # Logs
 
 - **Development:** `.logs/` folder (gitignored)
-- **Production:** `tail -f ~/Library/Logs/app.dictara/Dictara.log`
+- **Production:** `tail -f ~/Library/Logs/app.voiceflow/VoiceFlow.log`
 
 # Code changes workflow:
 

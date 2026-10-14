@@ -1,20 +1,16 @@
-use crate::updater::{self, Updater};
 use crate::{
     autolaunch,
-    config::{
-        self, AzureOpenAIConfig, ConfigKey, ConfigStore, CustomEndpointConfig, OnboardingStep,
-        OpenAIConfig, OpenRouterConfig, Provider, ShortcutsConfig,
-    },
+    config::{self, ConfigKey, ConfigStore, OnboardingStep, ShortcutsConfig},
     globe_key,
+    history::History,
     keyboard_listener::KeyListener,
-    keychain::{self, ProviderAccount},
-    models::{ModelLoader, ModelManager},
+    keychain, presets,
     recording::{
         cleanup_old_recordings, Controller, LastRecording, LastRecordingState, RecordingCommand,
         RecordingStateManager,
     },
-    specta, telemetry,
-    ui::{menu::Menu, tray::Tray, window},
+    specta,
+    ui::{menu::Menu, panel, tray::Tray, window},
 };
 use log::{error, info, warn};
 use std::sync::{Arc, Mutex};
@@ -32,7 +28,7 @@ pub struct AudioLevelChannel {
 }
 
 pub fn setup_app(app: &mut tauri::App<tauri::Wry>) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Dictara v{}", env!("CARGO_PKG_VERSION"));
+    info!("VoiceFlow v{}", env!("CARGO_PKG_VERSION"));
 
     // Setup Specta for type-safe TypeScript bindings and event emission
     specta::setup(app.handle());
@@ -56,17 +52,14 @@ pub fn setup_app(app: &mut tauri::App<tauri::Wry>) -> Result<(), Box<dyn std::er
     }
 
     // Load app config and check if properly configured
+    // Carry API keys over from the pre-rename bundle id (one-time, idempotent)
+    keychain::migrate_legacy_bundle();
+
     let store = app.store("config.json")?;
 
     // Create and register Config as managed state
     let config_store = config::Config::new(store.clone());
     app.manage(config_store.clone());
-
-    // Initialize telemetry and Sentry
-    // Note: Sentry is disabled in debug builds (npm run dev:tauri)
-    // Sessions are periodically checked (every hour) and refreshed at midnight for accurate DAU tracking
-    let device_id = telemetry::get_or_create_device_id(&config_store);
-    let _sentry_guard = telemetry::init_sentry(&device_id, &config_store);
 
     let mut app_config = config_store.get(&ConfigKey::APP).unwrap_or_default();
     let mut onboarding_config = config_store.get(&ConfigKey::ONBOARDING).unwrap_or_default();
@@ -100,91 +93,30 @@ pub fn setup_app(app: &mut tauri::App<tauri::Wry>) -> Result<(), Box<dyn std::er
         config_store.set(&ConfigKey::ONBOARDING, onboarding_config.clone())?;
     }
 
-    // Initialize ModelManager and ModelLoader for local transcription
-    let model_manager = Arc::new(
-        ModelManager::new(app.app_handle())
-            .map_err(|e| format!("Failed to create ModelManager: {}", e))?,
-    );
-    let model_loader = Arc::new(ModelLoader::new(model_manager.models_dir().clone()));
+    // Open the transcription history and apply the retention window.
+    let history_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join("history.sqlite3");
 
-    // Migrate old models to new unified directory structure in background
-    // This runs asynchronously to not block app startup
-    {
-        let manager = model_manager.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(e) = manager.migrate_old_models().await {
-                error!("Failed to migrate models: {}", e);
-            }
-        });
+    let history = History::open(&history_path)
+        .map_err(|e| format!("Failed to open history database: {}", e))?;
+
+    if let Err(e) = history.prune(app_config.history_retention_days) {
+        warn!("Failed to prune history: {}", e);
+    }
+    app.manage(history);
+
+    // Build presets out of the old single-provider config, once.
+    if let Err(e) = presets::migrate_from_legacy_config(&config_store) {
+        warn!("Failed to migrate provider config into presets: {}", e);
     }
 
-    // Check if any provider is properly configured
-    let needs_configuration = match &app_config.active_provider {
-        Some(Provider::OpenAI) => {
-            keychain::load_provider_config::<OpenAIConfig>(ProviderAccount::OpenAI)
-                .ok()
-                .flatten()
-                .is_none()
-        }
-        Some(Provider::AzureOpenAI) => {
-            keychain::load_provider_config::<AzureOpenAIConfig>(ProviderAccount::AzureOpenAI)
-                .ok()
-                .flatten()
-                .is_none()
-        }
-        Some(Provider::OpenRouter) => {
-            keychain::load_provider_config::<OpenRouterConfig>(ProviderAccount::OpenRouter)
-                .ok()
-                .flatten()
-                .is_none()
-        }
-        Some(Provider::CustomEndpoint) => {
-            keychain::load_provider_config::<CustomEndpointConfig>(ProviderAccount::CustomEndpoint)
-                .ok()
-                .flatten()
-                .is_none()
-        }
-        Some(Provider::Local) => {
-            // Local provider is configured if a model is selected AND downloaded
-            let local_config = config_store.get(&ConfigKey::LOCAL_MODEL);
-            match local_config {
-                Some(cfg) => {
-                    cfg.selected_model.is_none()
-                        || !model_manager
-                            .is_model_downloaded(cfg.selected_model.as_deref().unwrap_or(""))
-                }
-                None => true,
-            }
-        }
-        None => true,
-    };
-
+    // The app is unusable until at least one preset can actually transcribe.
+    let needs_configuration = presets::load(&config_store).active().is_none();
     if needs_configuration {
-        warn!("AI provider not configured");
-    }
-
-    // Store model manager and loader in app state
-    app.manage(model_manager.clone());
-    app.manage(model_loader.clone());
-
-    // Eager load local model if Local provider is active and model is selected/downloaded
-    if app_config.active_provider == Some(Provider::Local) {
-        if let Some(local_config) = config_store.get(&ConfigKey::LOCAL_MODEL) {
-            if let Some(model_name) = local_config.selected_model {
-                if model_manager.is_model_downloaded(&model_name) {
-                    info!("Eagerly loading local model: {}", model_name);
-                    let loader = model_loader.clone();
-                    let app_handle = app.app_handle().clone();
-                    // Load in background to not block app startup
-                    // Use tauri::async_runtime::spawn which works in setup context
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(e) = loader.load_model(&model_name, &app_handle).await {
-                            error!("Failed to load local model on startup: {}", e);
-                        }
-                    });
-                }
-            }
-        }
+        warn!("No transcription preset configured");
     }
 
     // Determine if we need to show onboarding
@@ -214,6 +146,20 @@ pub fn setup_app(app: &mut tauri::App<tauri::Wry>) -> Result<(), Box<dyn std::er
 
     let menu = Menu::new(app)?;
     let _tray = Tray::new(app, &menu)?;
+
+    // Build the menu bar panel now so the first click opens instantly, and
+    // dismiss it whenever it loses focus, the way a real popover behaves.
+    match panel::create_panel(app.app_handle()) {
+        Ok(panel_window) => {
+            let handle = panel_window.clone();
+            panel_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = handle.hide();
+                }
+            });
+        }
+        Err(e) => error!("Failed to create menu bar panel: {}", e),
+    }
 
     // Initialize controller (transcriber created on-demand from config)
     let controller = Controller::new(
@@ -249,13 +195,6 @@ pub fn setup_app(app: &mut tauri::App<tauri::Wry>) -> Result<(), Box<dyn std::er
         // Manage KeyListener in Tauri state for hot-swapping
         app.manage(listener);
     }
-
-    // Initialize and start the updater
-    // In debug mode: checks and downloads updates but skips installation
-    // In release mode: checks, downloads, and installs updates when user is idle
-    let updater = Arc::new(Updater::new(state_manager));
-    app.manage(updater.clone());
-    updater::start_periodic_update_check(app.app_handle().clone(), updater);
 
     // Only fix the Globe key setting when using Fn in any shortcut
     // This prevents the emoji picker from appearing when using Fn for recording

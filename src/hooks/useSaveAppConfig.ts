@@ -1,10 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { commands, type Provider, type RecordingTrigger, type AudioFormat } from '@/bindings'
+import { commands, type RecordingTrigger } from '@/bindings'
 
 interface SaveAppConfigParams {
-  activeProvider?: Provider | null
   recordingTrigger?: RecordingTrigger
-  audioFormat?: AudioFormat | null
+  historyRetentionDays?: number
 }
 
 export function useSaveAppConfig() {
@@ -13,16 +12,14 @@ export function useSaveAppConfig() {
   return useMutation({
     mutationFn: async (params: SaveAppConfigParams): Promise<void> => {
       const result = await commands.saveAppConfig(
-        params.activeProvider ?? null,
         params.recordingTrigger ?? null,
-        params.audioFormat ?? null
+        params.historyRetentionDays ?? null
       )
       if (result.status === 'error') {
         throw new Error(result.error)
       }
     },
     onSuccess: () => {
-      // Invalidate the appConfig query to refetch fresh data
       queryClient.invalidateQueries({ queryKey: ['appConfig'] })
     },
   })

@@ -6,6 +6,10 @@ macro_rules! with_commands {
         $($wrapper)*![
             // App
             $crate::commands::get_app_version,
+            $crate::commands::hide_menubar_panel,
+            $crate::commands::open_preferences,
+            $crate::commands::paste_text,
+            $crate::commands::quit_app,
             // Accessibility
             $crate::commands::check_accessibility_permission,
             $crate::commands::request_accessibility_permission,
@@ -16,41 +20,31 @@ macro_rules! with_commands {
             // App configuration
             $crate::commands::load_app_config,
             $crate::commands::save_app_config,
-            // Provider selection
-            $crate::commands::get_current_provider,
-            $crate::commands::set_current_provider,
-            $crate::commands::clear_current_provider,
-            // OpenAI provider
-            $crate::commands::load_openai_config,
-            $crate::commands::save_openai_config,
-            $crate::commands::delete_openai_config,
-            $crate::commands::test_openai_config,
-            // Azure OpenAI provider
-            $crate::commands::load_azure_openai_config,
-            $crate::commands::save_azure_openai_config,
-            $crate::commands::delete_azure_openai_config,
-            $crate::commands::test_azure_openai_config,
-            // OpenRouter provider
-            $crate::commands::load_openrouter_config,
-            $crate::commands::save_openrouter_config,
-            $crate::commands::delete_openrouter_config,
-            $crate::commands::test_openrouter_config,
-            // Custom Endpoint provider
-            $crate::commands::load_custom_endpoint_config,
-            $crate::commands::save_custom_endpoint_config,
-            $crate::commands::delete_custom_endpoint_config,
-            $crate::commands::test_custom_endpoint_config,
-            // Local model provider
-            $crate::commands::get_available_models,
-            $crate::commands::download_model,
-            $crate::commands::cancel_model_download,
-            $crate::commands::delete_model,
-            $crate::commands::load_model,
-            $crate::commands::unload_model,
-            $crate::commands::get_loaded_model,
-            $crate::commands::load_local_model_config,
-            $crate::commands::save_local_model_config,
-            $crate::commands::delete_local_model_config,
+            // Transcription presets
+            $crate::commands::load_presets,
+            $crate::commands::save_preset,
+            $crate::commands::duplicate_preset,
+            $crate::commands::delete_preset,
+            $crate::commands::set_active_preset,
+            $crate::commands::cycle_active_preset,
+            $crate::commands::reorder_presets,
+            $crate::commands::test_preset,
+            $crate::commands::list_providers,
+            // Provider credentials (Keychain)
+            $crate::commands::list_credentials,
+            $crate::commands::save_credentials,
+            $crate::commands::delete_credentials,
+            // Recording popup appearance
+            $crate::commands::load_popup_style,
+            $crate::commands::save_popup_style,
+            $crate::commands::reset_popup_style,
+            // History
+            $crate::commands::list_history,
+            $crate::commands::get_history_entry,
+            $crate::commands::delete_history_entry,
+            $crate::commands::clear_history,
+            $crate::commands::history_stats,
+            $crate::commands::prune_history,
             // Recording
             $crate::commands::stop_recording,
             $crate::commands::cancel_recording,

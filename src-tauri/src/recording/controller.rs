@@ -5,6 +5,7 @@ use tauri_specta::Event;
 use tokio::sync::mpsc::Receiver;
 
 use crate::clients::{Transcriber, TranscriptionError};
+use crate::history::{History, NewEntry};
 use crate::recording::{
     audio_recorder::{cleanup_recording_file, AudioRecorder},
     commands::RecordingCommand,
@@ -13,7 +14,6 @@ use crate::recording::{
 };
 use crate::ui::menu::Menu;
 use crate::ui::window::{close_recording_popup, open_recording_popup};
-use crate::updater;
 
 /// Bytes per second for 16kHz mono 16-bit audio (~32KB/s)
 const AUDIO_BYTES_PER_SECOND: u64 = 32000;
@@ -25,6 +25,13 @@ const MIN_SPEECH_DURATION_MS: u64 = 500;
 /// Whether to delete audio files after transcription completes
 /// Set to false to keep recordings for debugging
 const CLEANUP_AUDIO_AFTER_TRANSCRIPTION: bool = true;
+
+/// How long the popup stays visible after the text has been pasted.
+///
+/// The window is deliberately not hidden the instant the work is done: the orb
+/// plays a dispersal animation, and hiding immediately would cut it off. Must
+/// stay in step with `DISPERSE_SECONDS` in the orb shaders.
+const DISPERSE_DURATION: std::time::Duration = std::time::Duration::from_millis(600);
 
 /// Error type for controller action failures
 ///
@@ -220,20 +227,14 @@ impl Controller {
                 if let Some(rec) = recording.take() {
                     self.handle_stop(rec)?;
                 }
-                // Notify updater that recording/transcription finished
-                updater::on_recording_finished(&self.app_handle);
             }
             RecordingAction::CancelRecording => {
                 if let Some(rec) = recording.take() {
                     self.handle_cancel(rec)?;
                 }
-                // Notify updater that recording was cancelled
-                updater::on_recording_finished(&self.app_handle);
             }
             RecordingAction::RetryTranscription => {
                 self.handle_retry_transcription()?;
-                // Notify updater that transcription finished
-                updater::on_recording_finished(&self.app_handle);
             }
         }
         Ok(())
@@ -317,15 +318,16 @@ impl Controller {
             cleanup_recording_file(&recording_result.file_path);
         }
 
-        // Hide recording popup window
-        if let Err(e) = close_recording_popup(&self.app_handle) {
-            log::error!("Failed to close recording popup: {}", e);
-        }
-
-        // Emit cancellation event for frontend awareness
+        // Emit first so the popup can disperse, then hide it once that is done.
         RecordingStateChanged::Cancelled
             .emit(&self.app_handle)
             .map_err(|e| ActionError::cancel(format!("Failed to emit cancelled event: {}", e)))?;
+
+        std::thread::sleep(DISPERSE_DURATION);
+
+        if let Err(e) = close_recording_popup(&self.app_handle) {
+            log::error!("Failed to close recording popup: {}", e);
+        }
 
         Ok(())
     }
@@ -381,12 +383,52 @@ impl Controller {
         let transcriber = Transcriber::from_app(&self.app_handle)
             .map_err(|e| ActionError::transcription(&e, audio_file_path.to_string()))?;
 
-        // Transcribe - the transcriber handles API vs local internally
         let text = transcriber
             .transcribe(PathBuf::from(audio_file_path), duration_ms)
             .map_err(|e| ActionError::transcription(&e, audio_file_path.to_string()))?;
 
-        self.handle_transcription_success(&text, audio_file_path)
+        // Capture the target app before pasting, while it still has focus.
+        let target_app = crate::frontmost::current();
+
+        let result = self.handle_transcription_success(&text, audio_file_path);
+
+        // History is a side record: a failure here must not fail the paste.
+        self.record_history(&text, duration_ms, transcriber.preset(), target_app);
+
+        result
+    }
+
+    /// Append a completed transcription to the history database.
+    ///
+    /// Only text and metadata are stored — never the audio.
+    fn record_history(
+        &self,
+        text: &str,
+        duration_ms: u64,
+        preset: &crate::presets::Preset,
+        target_app: crate::frontmost::FrontmostApp,
+    ) {
+        use tauri::Manager;
+
+        let Some(history) = self.app_handle.try_state::<History>() else {
+            log::warn!("History unavailable; skipping record");
+            return;
+        };
+
+        let entry = NewEntry {
+            text: text.to_string(),
+            duration_ms: duration_ms as i64,
+            preset_id: Some(preset.id.clone()),
+            preset_name: Some(preset.name.clone()),
+            provider: Some(preset.provider.display_name().to_string()),
+            model: Some(preset.model.clone()),
+            app_bundle_id: target_app.bundle_id,
+            app_name: target_app.name,
+        };
+
+        if let Err(e) = history.insert(entry) {
+            log::error!("Failed to record transcription in history: {}", e);
+        }
     }
 
     /// Handle successful transcription: cleanup, paste, update state, emit event
@@ -428,17 +470,20 @@ impl Controller {
             log::error!("Failed to enable paste menu item: {}", e);
         }
 
-        // Hide recording popup window
-        if let Err(e) = close_recording_popup(&self.app_handle) {
-            log::error!("Failed to close recording popup: {}", e);
-        }
-
+        // Tell the popup we are done *before* hiding it, so it can play its
+        // dispersal animation, then give that animation time to run.
         if let Err(e) = (RecordingStateChanged::Stopped {
             text: text.to_string(),
         })
         .emit(&self.app_handle)
         {
             log::error!("Failed to emit stopped event: {}", e);
+        }
+
+        std::thread::sleep(DISPERSE_DURATION);
+
+        if let Err(e) = close_recording_popup(&self.app_handle) {
+            log::error!("Failed to close recording popup: {}", e);
         }
 
         Ok(())

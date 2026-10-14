@@ -63,7 +63,7 @@ export function AccessibilityStep() {
           <Alert className="border-green-500/50 bg-green-500/10">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <AlertDescription className="text-green-700 dark:text-green-400">
-              Dictara has accessibility access and can detect keyboard shortcuts.
+              VoiceFlow has accessibility access and can detect keyboard shortcuts.
             </AlertDescription>
           </Alert>
 
@@ -76,7 +76,7 @@ export function AccessibilityStep() {
   return (
     <StepContainer
       title="Accessibility Permission"
-      description="Dictara needs accessibility access to detect keyboard shortcuts."
+      description="VoiceFlow needs accessibility access to detect keyboard shortcuts."
       onNext={handleRestart}
       nextLabel="Restart App & Next"
       onBack={() => goBack('accessibility')}
@@ -85,8 +85,8 @@ export function AccessibilityStep() {
     >
       <div className="space-y-6">
         <p className="text-sm text-muted-foreground">
-          This permission allows Dictara to listen for the FN key even when other apps are focused.
-          Without it, keyboard shortcuts won't work.
+          This permission allows VoiceFlow to listen for the FN key even when other apps are
+          focused. Without it, keyboard shortcuts won't work.
         </p>
 
         <div className="space-y-4">
@@ -95,7 +95,7 @@ export function AccessibilityStep() {
             <div className="space-y-2">
               <p className="text-sm font-medium">Step 1: Open System Settings</p>
               <p className="text-sm text-muted-foreground">
-                Click the button below to open the Accessibility settings. Then find "Dictara" in
+                Click the button below to open the Accessibility settings. Then find "VoiceFlow" in
                 the list and toggle it ON.
               </p>
               <Button variant="default" onClick={() => requestPermission.mutate()}>

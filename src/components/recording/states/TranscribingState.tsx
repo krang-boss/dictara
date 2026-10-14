@@ -1,10 +1,17 @@
-import { Mirage } from 'ldrs/react'
-import 'ldrs/react/Mirage.css'
+import type { PopupStyle } from '@/bindings'
+import { Orb } from '@/components/orb/Orb'
 
-export function TranscribingState() {
+/**
+ * Waiting on the provider.
+ *
+ * The same orb, spun up into a tight fast rotation. Recognisably the same
+ * object, clearly no longer listening — the motion carries the difference, so
+ * the colours stay the user's own rather than being overridden with grey.
+ */
+export function TranscribingState({ style }: { style: PopupStyle }) {
   return (
-    <div className="flex w-full h-full justify-center items-center">
-      <Mirage size="60" speed="2.5" color="#9ca3af" />
+    <div className="flex h-full w-full items-center justify-center">
+      <Orb style={style} state="processing" level={0} />
     </div>
   )
 }

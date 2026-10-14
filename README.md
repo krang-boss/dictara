@@ -1,59 +1,38 @@
-<div align="center">
+# VoiceFlow
 
-<img src="src-tauri/icons/Square310x310Logo.png" alt="Dictara" width="128" height="128">
+Личное macOS-приложение для диктовки: удерживаешь `Fn` — говоришь — текст сам вставляется
+туда, где стоит курсор. Транскрипция через облачные провайдеры по своим API-ключам.
 
-# Dictara
+Форк [Dictara](https://github.com/vitalii-zinchenko/dictara), переработанный под себя.
+Планы по перестройке — в [REBUILD.md](REBUILD.md).
 
-**Typing is slow. Speaking isn't.**
+## Стек
 
-Free · Bring Your Own Key · Speech-to-Text
+- **Ядро:** Rust + Tauri v2
+- **UI:** React 19 + TypeScript + Tailwind + shadcn/ui
+- **Мост:** `tauri-specta` → типизированные биндинги в `src/bindings.ts`
+- **Секреты:** macOS Keychain
 
-Turn your spoken words into text — in any app, any language.
+## Провайдеры
 
-[![Download](https://img.shields.io/badge/Download-Dictara-blue?style=for-the-badge)](https://dictara.app/)
+OpenAI · Azure OpenAI · OpenRouter · ElevenLabs · любой OpenAI-совместимый endpoint
 
-[**Get Dictara**](https://dictara.app/)
+## Разработка
 
-</div>
-
----
-
-## How It Works
-
-1. **Install** — Download and install Dictara
-2. **Configure** — Add your OpenAI or Azure OpenAI API key
-3. **Dictate** — Hold `FN` to record, release to transcribe. Or press `FN+Space` for hands-free mode
-4. **Done** — Text is automatically pasted wherever your cursor is — in any app
-
----
-
-## Troubleshooting
-
-### Emoji Picker Appears When Using Fn Key
-
-If the emoji picker (or character viewer) appears when you press the Fn/Globe (🌐) key, you need to change your macOS keyboard settings:
-
-**Via System Settings (Recommended):**
-1. Open **System Settings** → **Keyboard**
-2. Find **"Press 🌐 key to"** dropdown
-3. Change it to **"Do Nothing"** or **"Change Input Source"**
-
-**Via Terminal:**
 ```bash
-# Set Globe key to "Do Nothing"
-defaults write com.apple.HIToolbox AppleFnUsageType -int 0
-
-# Then log out and log back in, or restart your Mac
+npm install
+npm run dev:tauri      # запуск приложения в дев-режиме
+npm run verify         # типы, форматирование, clippy, сборка
 ```
 
-> **Note:** This is a macOS limitation. The Fn/Globe key triggers the emoji picker at a system level that applications cannot intercept.
+Логи: `.logs/app.log` в дев-режиме, `~/Library/Logs/app.voiceflow/VoiceFlow.log` в релизе.
 
----
+## Fn-клавиша и эмодзи-пикер
 
-## Contributing
+Если по `Fn` открывается эмодзи-пикер, поменяй в **System Settings → Keyboard →
+«Press 🌐 key to»** на **Do Nothing**. Это системное поведение macOS, перехватить его
+из приложения нельзя.
 
-We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTING.md) to get started.
+## Лицензия
 
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT — см. [LICENSE](LICENSE).

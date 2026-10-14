@@ -3,12 +3,42 @@ use std::sync::mpsc;
 use tauri::window::Color;
 use tauri::{Manager, Monitor};
 
-type AnyError = Box<dyn std::error::Error + Send + Sync>;
+pub type AnyError = Box<dyn std::error::Error + Send + Sync>;
 
-const POPUP_WIDTH_NORMAL: u32 = 80;
-const POPUP_WIDTH_ERROR: u32 = 400; // 5x wider for error display
-const POPUP_HEIGHT: u32 = 74;
+const POPUP_WIDTH_ERROR: u32 = 400; // Wide enough to read an error message
 const BOTTOM_MARGIN: i32 = 100;
+
+/// Room under the orb for the elapsed-time readout.
+const POPUP_TIMER_ROOM: u32 = 22;
+
+/// Breathing room around the orb, so its soft edge is not clipped.
+const POPUP_PADDING: u32 = 12;
+
+/// Size the popup window to fit the configured orb.
+///
+/// The orb's diameter is user-configurable in the laboratory, so the window has
+/// to follow it rather than assume a fixed size.
+fn popup_size(app_handle: &tauri::AppHandle) -> (u32, u32) {
+    use crate::config::{Config, ConfigKey, ConfigStore};
+    use crate::popup_style::PopupStyle;
+
+    let style = app_handle
+        .try_state::<Config>()
+        .and_then(|config| config.get(&ConfigKey::<PopupStyle>::POPUP_STYLE))
+        .unwrap_or_default()
+        .sanitized();
+
+    let width = style.size + POPUP_PADDING * 2;
+    let height = style.size
+        + POPUP_PADDING * 2
+        + if style.show_timer {
+            POPUP_TIMER_ROOM
+        } else {
+            0
+        };
+
+    (width, height)
+}
 
 /// Show a window without stealing focus (macOS only).
 /// Uses `orderFront:` instead of `makeKeyAndOrderFront:` to avoid activating the app.
@@ -98,6 +128,20 @@ where
         .unwrap_or_else(|_| Err("Failed to receive result from main thread task".into()))
 }
 
+/// The window surface, in the system's current appearance.
+///
+/// The webview paints the real background, but the window is on screen for a
+/// frame or two before that happens. Painting it up front is what stops a
+/// white flash on a dark desktop — and, now that the app follows the system
+/// appearance rather than being dark unconditionally, a black one on a light
+/// desktop. The values match the `--background` token in `index.css`.
+fn surface_color(window: &tauri::WebviewWindow) -> Color {
+    match window.theme() {
+        Ok(tauri::Theme::Light) => Color(255, 255, 255, 255),
+        _ => Color(14, 14, 17, 255),
+    }
+}
+
 pub fn open_recording_popup(app_handle: &tauri::AppHandle) -> Result<(), AnyError> {
     let app_handle_for_closure = app_handle.clone();
     run_on_main_thread_sync(app_handle, move || {
@@ -114,10 +158,11 @@ pub fn close_recording_popup(app_handle: &tauri::AppHandle) -> Result<(), AnyErr
 
 fn open_recording_popup_inner(app_handle: &tauri::AppHandle) -> Result<(), AnyError> {
     if let Some(window) = app_handle.get_webview_window("recording-popup") {
-        // Set size
+        let (popup_width, popup_height) = popup_size(app_handle);
+
         if let Err(e) = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: POPUP_WIDTH_NORMAL as f64,
-            height: POPUP_HEIGHT as f64,
+            width: popup_width as f64,
+            height: popup_height as f64,
         })) {
             error!("Failed to set window size: {}", e);
         }
@@ -138,10 +183,10 @@ fn open_recording_popup_inner(app_handle: &tauri::AppHandle) -> Result<(), AnyEr
             let logical_y = monitor_position.y as f64 / scale_factor;
 
             // Calculate centered horizontal position
-            let x = logical_x + (logical_width - POPUP_WIDTH_NORMAL as f64) / 2.0;
+            let x = logical_x + (logical_width - popup_width as f64) / 2.0;
 
             // Calculate position from bottom
-            let y = logical_y + logical_height - POPUP_HEIGHT as f64 - BOTTOM_MARGIN as f64;
+            let y = logical_y + logical_height - popup_height as f64 - BOTTOM_MARGIN as f64;
 
             if let Err(e) =
                 window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))
@@ -185,10 +230,11 @@ pub fn resize_recording_popup_for_error(app_handle: &tauri::AppHandle) -> Result
 
 fn resize_recording_popup_inner(app_handle: &tauri::AppHandle, width: u32) -> Result<(), AnyError> {
     if let Some(window) = app_handle.get_webview_window("recording-popup") {
-        // Set new size
+        let (_, popup_height) = popup_size(app_handle);
+
         window.set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: width as f64,
-            height: POPUP_HEIGHT as f64,
+            height: popup_height as f64,
         }))?;
 
         // Recalculate centered position
@@ -207,7 +253,7 @@ fn resize_recording_popup_inner(app_handle: &tauri::AppHandle, width: u32) -> Re
 
             // Center horizontally with new width
             let x = logical_x + (logical_width - width as f64) / 2.0;
-            let y = logical_y + logical_height - POPUP_HEIGHT as f64 - BOTTOM_MARGIN as f64;
+            let y = logical_y + logical_height - popup_height as f64 - BOTTOM_MARGIN as f64;
 
             window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }))?;
         }
@@ -232,10 +278,13 @@ pub fn open_preferences_window(app_handle: &tauri::AppHandle) -> Result<(), AnyE
         .inner_size(width, height)
         .min_inner_size(width, height)
         // .max_inner_size(width, height)
-        .background_color(Color(10, 10, 10, 255)) // Dark background to prevent white flash
         .visible(false)
         .build()?,
     };
+
+    // Re-applied on every open, so switching appearance between visits is
+    // picked up without having to watch for a theme-change event.
+    let _ = window.set_background_color(Some(surface_color(&window)));
 
     window.show()?;
     window.set_focus()?;
@@ -254,15 +303,16 @@ pub fn open_onboarding_window(app_handle: &tauri::AppHandle) -> Result<(), AnyEr
             "onboarding",
             tauri::WebviewUrl::App("onboarding".into()),
         )
-        .title("Welcome to Dictara")
+        .title("Welcome to VoiceFlow")
         .inner_size(width, height)
         .min_inner_size(width, height)
         .max_inner_size(width, height) // Fixed size for wizard
         .resizable(false)
-        .background_color(Color(10, 10, 10, 255)) // Dark background to prevent white flash
         .visible(false)
         .build()?,
     };
+
+    let _ = window.set_background_color(Some(surface_color(&window)));
 
     window.show()?;
     window.set_focus()?;

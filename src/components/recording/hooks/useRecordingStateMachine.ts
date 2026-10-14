@@ -9,7 +9,14 @@ import {
 } from '@/hooks/useRecording'
 import { events, type RecordingStateChanged } from '@/bindings'
 
-export type RecordingState = 'recording' | 'transcribing' | 'error'
+/**
+ * What the popup is showing.
+ *
+ * `finishing` is the window between "the text has been pasted" and "the window
+ * hides": the backend deliberately holds the popup open for a moment so the
+ * dispersal animation has somewhere to play.
+ */
+export type RecordingState = 'recording' | 'transcribing' | 'finishing' | 'error'
 
 // Extract error type from the discriminated union
 export type RecordingErrorPayload = Extract<RecordingStateChanged, { state: 'error' }>
@@ -106,11 +113,11 @@ export function useRecordingStateMachine(
             break
 
           case 'stopped':
-            setState('recording')
+            setState('finishing')
             break
 
           case 'cancelled':
-            setState('recording')
+            setState('finishing')
             break
 
           case 'error':

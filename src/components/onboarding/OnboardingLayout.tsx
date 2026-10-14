@@ -24,7 +24,7 @@ export function OnboardingLayout({ children }: OnboardingLayoutProps) {
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header className="shrink-0 border-b px-6 py-4">
-        <h1 className="text-lg font-semibold">Welcome to Dictara</h1>
+        <h1 className="text-lg font-semibold">Welcome to VoiceFlow</h1>
       </header>
 
       <div className="flex flex-1 min-h-0">

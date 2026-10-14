@@ -62,7 +62,7 @@ export function MicrophoneStep() {
           <Alert className="border-green-500/50 bg-green-500/10">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             <AlertDescription className="text-green-700 dark:text-green-400">
-              Dictara can access your microphone for voice recording.
+              VoiceFlow can access your microphone for voice recording.
             </AlertDescription>
           </Alert>
 
@@ -79,7 +79,7 @@ export function MicrophoneStep() {
     return (
       <StepContainer
         title="Microphone Permission"
-        description="Dictara needs microphone access to record your voice."
+        description="VoiceFlow needs microphone access to record your voice."
         onNext={handleNext}
         nextDisabled={true}
         onBack={() => goBack('microphone')}
@@ -106,7 +106,7 @@ export function MicrophoneStep() {
               <p className="text-sm font-medium">Enable Microphone Access</p>
               <p className="text-sm text-muted-foreground">
                 Open System Settings, go to Privacy & Security → Microphone, and toggle ON for
-                Dictara.
+                VoiceFlow.
               </p>
               <Button variant="default" onClick={() => openSettings.mutate()}>
                 Open System Settings
@@ -122,7 +122,7 @@ export function MicrophoneStep() {
   return (
     <StepContainer
       title="Microphone Permission"
-      description="Dictara needs microphone access to record your voice."
+      description="VoiceFlow needs microphone access to record your voice."
       onNext={handleNext}
       nextDisabled={!isAuthorized}
       onBack={() => goBack('microphone')}
@@ -137,8 +137,8 @@ export function MicrophoneStep() {
         </div>
 
         <p className="text-sm text-muted-foreground text-center">
-          When you press the trigger key, Dictara will record audio from your microphone and convert
-          it to text. This requires microphone permission.
+          When you press the trigger key, VoiceFlow will record audio from your microphone and
+          convert it to text. This requires microphone permission.
         </p>
 
         <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
